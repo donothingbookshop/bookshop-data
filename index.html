@@ -261,36 +261,74 @@
       if (e.key === 'Enter') fetchBook();
     });
 
-    async function fetchBook() {
+        async function fetchBook() {
       const isbn = document.getElementById('isbnInput').value.trim();
       if (!isbn) return;
 
-      try {
-        const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
-        const data = await res.json();
+      currentBook = null;
 
-        if (data.totalItems > 0) {
-          const info = data.items[0].volumeInfo;
+      try {
+        // 1. 嘗試搜尋 Google Books
+        const resGoogle = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+        const dataGoogle = await resGoogle.json();
+
+        if (dataGoogle.totalItems > 0) {
+          const info = dataGoogle.items[0].volumeInfo;
           currentBook = {
             title: info.title || '未知書名',
             author: info.authors ? info.authors.join(', ') : '未知作者',
             cover_url: info.imageLinks ? info.imageLinks.thumbnail : 'https://via.placeholder.com/128x192?text=No+Cover',
             isbn: isbn
           };
-
-          document.getElementById('bookTitle').innerText = currentBook.title;
-          document.getElementById('bookAuthor').innerText = '作者：' + currentBook.author;
-          document.getElementById('bookIsbn').innerText = 'ISBN: ' + currentBook.isbn;
-          document.getElementById('bookCover').src = currentBook.cover_url;
-          document.getElementById('bookPrice').value = 0;
-          document.getElementById('bookResult').classList.remove('hidden');
-        } else {
-          alert('Google Books 找不到此 ISBN 資料');
+          displayBookResult();
+          return;
         }
+
+        // 2. 如果 Google 找不到，嘗試搜尋 Open Library
+        const resOL = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`);
+        const dataOL = await resOL.json();
+        const olKey = `ISBN:${isbn}`;
+
+        if (dataOL[olKey]) {
+          const info = dataOL[olKey];
+          currentBook = {
+            title: info.title || '未知書名',
+            author: info.authors ? info.authors.map(a => a.name).join(', ') : '未知作者',
+            cover_url: info.cover ? info.cover.medium : 'https://via.placeholder.com/128x192?text=No+Cover',
+            isbn: isbn
+          };
+          displayBookResult();
+          return;
+        }
+
+        // 3. 若資料庫都找不到，彈出提示手動輸入
+        const customTitle = prompt(`線上資料庫中找不到 ISBN (${isbn}) 的書籍。\n請直接手動輸入「書名」：`);
+        if (customTitle) {
+          const customAuthor = prompt('請輸入「作者」（若無可留空）：') || '未知作者';
+          currentBook = {
+            title: customTitle,
+            author: customAuthor,
+            cover_url: 'https://via.placeholder.com/128x192?text=Manual+Entry',
+            isbn: isbn
+          };
+          displayBookResult();
+        }
+
       } catch (err) {
-        alert('網路連線失敗');
+        alert('網路連線失敗或搜尋出錯，請手動輸入');
       }
     }
+
+    // 顯示書籍資料至畫面的輔助函式
+    function displayBookResult() {
+      document.getElementById('bookTitle').innerText = currentBook.title;
+      document.getElementById('bookAuthor').innerText = '作者：' + currentBook.author;
+      document.getElementById('bookIsbn').innerText = 'ISBN: ' + currentBook.isbn;
+      document.getElementById('bookCover').src = currentBook.cover_url;
+      document.getElementById('bookPrice').value = 0;
+      document.getElementById('bookResult').classList.remove('hidden');
+    }
+
 
     async function saveBook(status) {
       if (!currentBook) return;
