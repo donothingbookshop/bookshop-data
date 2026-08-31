@@ -58,7 +58,10 @@
 
       <!-- 進貨與書籍搜尋區 -->
       <div class="bg-slate-50 p-4 rounded-xl border mb-6">
-        <h2 class="text-xs font-bold text-slate-700 mb-3">進貨與書籍搜尋</h2>
+        <div class="flex justify-between items-center mb-3">
+          <h2 class="text-xs font-bold text-slate-700">進貨與書籍搜尋</h2>
+          <button onclick="openBookModal()" class="bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-blue-700">+ 手動新增書籍 / 作者寄售</button>
+        </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <label class="text-xs text-slate-500 mb-1 block">1. ISBN 條碼搜尋：</label>
@@ -104,6 +107,7 @@
             <tr>
               <th class="p-3 w-14">封面</th>
               <th class="p-3">書名</th>
+              <th class="p-3">屬性/條款</th>
               <th class="p-3">分店</th>
               <th class="p-3">ISBN</th>
               <th class="p-3">單價</th>
@@ -168,30 +172,56 @@
 
   </div>
 
-  <!-- 📖 新增 / 編輯書籍 Modal -->
+  <!-- 📖 新增 / 編輯書籍 Modal (已含圖片上傳 + 作者寄售) -->
   <div id="bookModal" class="hidden fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
-    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
       <button onclick="closeBookModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">✕</button>
       <h3 id="bookModalTitle" class="text-sm font-bold text-slate-900 mb-4">📖 新增 / 編輯書籍資訊</h3>
       <form onsubmit="saveBook(event)" class="space-y-3 text-xs">
         <input type="hidden" id="mBookId">
+
+        <div>
+          <label class="font-bold text-slate-600 block mb-1">進貨類型：</label>
+          <select id="mIsConsignment" onchange="toggleConsignmentFields()" class="w-full p-2 border rounded-lg bg-slate-50 font-bold text-slate-800">
+            <option value="false">一般進貨 (賣店採購)</option>
+            <option value="true">✍️ 作者寄售 (自印/獨立出版)</option>
+          </select>
+        </div>
+
         <div>
           <label class="font-bold text-slate-600 block mb-1">書名：</label>
           <input type="text" id="mTitle" required class="w-full p-2 border rounded-lg">
         </div>
+
         <div class="grid grid-cols-2 gap-2">
           <div>
             <label class="font-bold text-slate-600 block mb-1">ISBN：</label>
             <input type="text" id="mIsbn" class="w-full p-2 border rounded-lg">
           </div>
           <div>
-            <label class="font-bold text-slate-600 block mb-1">作者：</label>
+            <label class="font-bold text-slate-600 block mb-1">作者姓名：</label>
             <input type="text" id="mAuthor" class="w-full p-2 border rounded-lg">
           </div>
         </div>
+
+        <!-- 寄售專用欄位區塊 (動態顯示/隱藏) -->
+        <div id="consignmentFields" class="hidden border border-amber-200 bg-amber-50/50 p-3 rounded-lg space-y-2">
+          <p class="font-bold text-amber-800 text-[11px]">✍️ 作者寄售設定：</p>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="font-bold text-slate-600 block mb-1">作者聯絡電話：</label>
+              <input type="text" id="mAuthorPhone" placeholder="例如：91234567" class="w-full p-2 border rounded-lg bg-white">
+            </div>
+            <div>
+              <label class="font-bold text-slate-600 block mb-1">拆帳分段/備註：</label>
+              <input type="text" id="mConsignSplit" placeholder="例如：73拆分帳" class="w-full p-2 border rounded-lg bg-white">
+            </div>
+          </div>
+        </div>
+
         <div class="grid grid-cols-3 gap-2">
           <div>
-            <label class="font-bold text-slate-600 block mb-1">單價：</label>
+            <label class="font-bold text-slate-600 block mb-1">單價 (HKD)：</label>
             <input type="number" id="mPrice" required class="w-full p-2 border rounded-lg">
           </div>
           <div>
@@ -199,7 +229,7 @@
             <input type="number" id="mQty" value="1" required class="w-full p-2 border rounded-lg">
           </div>
           <div>
-            <label class="font-bold text-slate-600 block mb-1">分店：</label>
+            <label class="font-bold text-slate-600 block mb-1">存放分店：</label>
             <select id="mStore" class="w-full p-2 border rounded-lg">
               <option value="觀塘店">觀塘店</option>
               <option value="西營盤店">西營盤店</option>
@@ -207,10 +237,23 @@
             </select>
           </div>
         </div>
+
+        <!-- 封面圖片相片 Upload 與網址欄 -->
         <div>
-          <label class="font-bold text-slate-600 block mb-1">封面圖片網址：</label>
-          <input type="text" id="mCover" class="w-full p-2 border rounded-lg">
+          <label class="font-bold text-slate-600 block mb-1">封面圖片：</label>
+          <div class="flex items-center gap-2 mb-2">
+            <label class="cursor-pointer bg-slate-800 hover:bg-slate-900 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition">
+              <span>📸 拍照 / 選擇圖片上傳</span>
+              <input type="file" accept="image/*" class="hidden" onchange="handleModalImageUpload(this)">
+            </label>
+            <span id="uploadStatusText" class="text-[11px] text-slate-400"></span>
+          </div>
+          <input type="text" id="mCover" placeholder="圖片網址 (或透過上傳自動填入)" class="w-full p-2 border rounded-lg text-xs text-slate-600">
+          <div id="modalCoverPreview" class="mt-2 hidden">
+            <img id="mCoverImg" src="" class="w-16 h-20 object-cover rounded border">
+          </div>
         </div>
+
         <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-bold hover:bg-blue-700 mt-2">儲存書籍資訊</button>
       </form>
     </div>
@@ -405,10 +448,22 @@
       tbody.innerHTML = '';
       books.forEach(b => {
         const cover = b.cover_url ? `<img src="${b.cover_url}" class="w-10 h-12 object-cover rounded border">` : '<div class="w-10 h-12 bg-slate-100 rounded flex items-center justify-center text-slate-400 text-xs">無</div>';
+        
+        // 屬性標籤：一般進貨 VS 作者寄售
+        const typeBadge = b.is_consignment 
+          ? `<span class="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] px-1.5 py-0.5 rounded font-bold">✍️ 作者寄售</span>` 
+          : `<span class="bg-blue-100 text-blue-700 text-[10px] px-1.5 py-0.5 rounded font-bold">一般進貨</span>`;
+
+        const consignDetail = b.is_consignment && b.consign_split ? `<div class="text-[10px] text-amber-700 mt-0.5">${b.consign_split}</div>` : '';
+
         tbody.innerHTML += `
           <tr class="hover:bg-slate-50">
             <td class="p-3">${cover}</td>
-            <td class="p-3 font-semibold text-slate-800">${b.title} <span class="bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0.5 rounded font-bold">全新</span></td>
+            <td class="p-3 font-semibold text-slate-800">
+              ${b.title}
+              <div class="text-slate-400 text-[11px]">${b.author || '未知作者'}</div>
+            </td>
+            <td class="p-3">${typeBadge}${consignDetail}</td>
             <td class="p-3">${b.store || '觀塘店'}</td>
             <td class="p-3 font-mono text-slate-500">${b.isbn || '-'}</td>
             <td class="p-3 font-bold text-slate-800">$ ${b.price}</td>
@@ -462,16 +517,58 @@
       }
     }
 
+    function toggleConsignmentFields() {
+      const isConsign = document.getElementById('mIsConsignment').value === 'true';
+      const fields = document.getElementById('consignmentFields');
+      if (isConsign) {
+        fields.classList.remove('hidden');
+      } else {
+        fields.classList.add('hidden');
+      }
+    }
+
+    // 上傳圖片處理 (自動轉 Base64 數據)
+    function handleModalImageUpload(input) {
+      if (input.files && input.files[0]) {
+        const file = input.files[0];
+        document.getElementById('uploadStatusText').innerText = '載入中...';
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const base64Url = e.target.result;
+          document.getElementById('mCover').value = base64Url;
+          document.getElementById('mCoverImg').src = base64Url;
+          document.getElementById('modalCoverPreview').classList.remove('hidden');
+          document.getElementById('uploadStatusText').innerText = '已載入圖片！';
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
     function openBookModal(data = {}) {
       document.getElementById('mBookId').value = data.id || '';
+      document.getElementById('mIsConsignment').value = data.is_consignment ? 'true' : 'false';
       document.getElementById('mTitle').value = data.title || '';
       document.getElementById('mIsbn').value = data.isbn || '';
       document.getElementById('mAuthor').value = data.author || '';
+      document.getElementById('mAuthorPhone').value = data.author_phone || '';
+      document.getElementById('mConsignSplit').value = data.consign_split || '';
       document.getElementById('mPrice').value = data.price || 70;
       document.getElementById('mQty').value = data.quantity || data.qty || 1;
       document.getElementById('mStore').value = data.store || '觀塘店';
-      document.getElementById('mCover').value = data.cover_url || data.cover || '';
       
+      const coverUrl = data.cover_url || data.cover || '';
+      document.getElementById('mCover').value = coverUrl;
+      document.getElementById('uploadStatusText').innerText = '';
+
+      if (coverUrl) {
+        document.getElementById('mCoverImg').src = coverUrl;
+        document.getElementById('modalCoverPreview').classList.remove('hidden');
+      } else {
+        document.getElementById('modalCoverPreview').classList.add('hidden');
+      }
+
+      toggleConsignmentFields();
+
       document.getElementById('bookModalTitle').innerText = data.id ? '📖 編輯書籍資訊' : '📖 新增書籍資訊';
       document.getElementById('bookModal').classList.remove('hidden');
     }
@@ -488,10 +585,15 @@
     async function saveBook(e) {
       e.preventDefault();
       const id = document.getElementById('mBookId').value;
+      const isConsignment = document.getElementById('mIsConsignment').value === 'true';
+
       const payload = {
         title: document.getElementById('mTitle').value,
         isbn: document.getElementById('mIsbn').value,
         author: document.getElementById('mAuthor').value,
+        is_consignment: isConsignment,
+        author_phone: isConsignment ? document.getElementById('mAuthorPhone').value : null,
+        consign_split: isConsignment ? document.getElementById('mConsignSplit').value : null,
         price: parseFloat(document.getElementById('mPrice').value),
         quantity: parseInt(document.getElementById('mQty').value),
         store: document.getElementById('mStore').value,
