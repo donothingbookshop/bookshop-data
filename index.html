@@ -27,7 +27,7 @@
           <h1 class="text-xl font-bold text-slate-900">📚 書店多分店進銷存與寄售系統</h1>
           <span class="bg-slate-100 text-slate-500 text-xs px-2 py-0.5 rounded-full border">內部專用</span>
         </div>
-        <p class="text-xs text-slate-500 mt-1">支持 3 間分店：觀塘店 / 旺角店 / 銅鑼灣店</p>
+        <p class="text-xs text-slate-500 mt-1">支持 3 間分店：觀塘店 / 西營盤店 / 荃灣店</p>
       </div>
       
       <!-- 分頁切換按鈕 -->
@@ -38,7 +38,7 @@
       </div>
     </div>
 
-    <!-- TAB 1: 舊版書籍管理（完整還原） -->
+    <!-- TAB 1: 書籍管理 -->
     <div id="tabBooks" class="tab-content mt-6">
       <!-- 統計數據卡片 -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -92,8 +92,8 @@
           <select id="storeFilter" onchange="filterBooks()" class="text-xs p-2 border rounded-lg">
             <option value="全部">分店：全部分店</option>
             <option value="觀塘店">觀塘店</option>
-            <option value="旺角店">旺角店</option>
-            <option value="銅鑼灣店">銅鑼灣店</option>
+            <option value="西營盤店">西營盤店</option>
+            <option value="荃灣店">荃灣店</option>
           </select>
         </div>
       </div>
@@ -168,12 +168,13 @@
 
   </div>
 
-  <!-- 📖 手動/新增書籍 Modal -->
+  <!-- 📖 新增 / 編輯書籍 Modal -->
   <div id="bookModal" class="hidden fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
     <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
       <button onclick="closeBookModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">✕</button>
-      <h3 class="text-sm font-bold text-slate-900 mb-4">📖 新增 / 編輯書籍資訊</h3>
+      <h3 id="bookModalTitle" class="text-sm font-bold text-slate-900 mb-4">📖 新增 / 編輯書籍資訊</h3>
       <form onsubmit="saveBook(event)" class="space-y-3 text-xs">
+        <input type="hidden" id="mBookId">
         <div>
           <label class="font-bold text-slate-600 block mb-1">書名：</label>
           <input type="text" id="mTitle" required class="w-full p-2 border rounded-lg">
@@ -201,8 +202,8 @@
             <label class="font-bold text-slate-600 block mb-1">分店：</label>
             <select id="mStore" class="w-full p-2 border rounded-lg">
               <option value="觀塘店">觀塘店</option>
-              <option value="旺角店">旺角店</option>
-              <option value="銅鑼灣店">銅鑼灣店</option>
+              <option value="西營盤店">西營盤店</option>
+              <option value="荃灣店">荃灣店</option>
             </select>
           </div>
         </div>
@@ -210,7 +211,7 @@
           <label class="font-bold text-slate-600 block mb-1">封面圖片網址：</label>
           <input type="text" id="mCover" class="w-full p-2 border rounded-lg">
         </div>
-        <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-bold hover:bg-blue-700 mt-2">儲存書籍庫存</button>
+        <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-bold hover:bg-blue-700 mt-2">儲存書籍資訊</button>
       </form>
     </div>
   </div>
@@ -248,8 +249,8 @@
             <label class="font-bold text-slate-600 block mb-1">分店：</label>
             <select id="cStore" class="w-full p-2 border rounded-lg">
               <option value="觀塘店">觀塘店</option>
-              <option value="旺角店">旺角店</option>
-              <option value="銅鑼灣店">銅鑼灣店</option>
+              <option value="西營盤店">西營盤店</option>
+              <option value="荃灣店">荃灣店</option>
             </select>
           </div>
         </div>
@@ -281,8 +282,8 @@
             <label class="font-bold text-slate-600 block mb-1">寄售分店：</label>
             <select id="consignStore" class="w-full p-2.5 border rounded-lg">
               <option value="觀塘店">觀塘店</option>
-              <option value="旺角店">旺角店</option>
-              <option value="銅鑼灣店">銅鑼灣店</option>
+              <option value="西營盤店">西營盤店</option>
+              <option value="荃灣店">荃灣店</option>
             </select>
           </div>
           <div>
@@ -374,7 +375,6 @@
     let dbBooks = [];
     let dbCrafts = [];
     let consignItems = [];
-    let html5QrcodeScanner = null;
 
     async function initData() {
       await loadBooks();
@@ -416,6 +416,7 @@
             <td class="p-3"><span class="text-blue-600 bg-blue-50 px-2 py-1 rounded font-bold text-[11px]">在地庫存</span></td>
             <td class="p-3 space-x-2">
               <button onclick="sellBook(${b.id})" class="text-blue-600 hover:underline font-bold">賣出</button>
+              <button onclick="editBook(${b.id})" class="text-slate-600 hover:underline font-bold">編輯</button>
               <button onclick="deleteBook(${b.id})" class="text-red-500 hover:underline">刪除</button>
             </td>
           </tr>
@@ -462,13 +463,22 @@
     }
 
     function openBookModal(data = {}) {
+      document.getElementById('mBookId').value = data.id || '';
       document.getElementById('mTitle').value = data.title || '';
       document.getElementById('mIsbn').value = data.isbn || '';
       document.getElementById('mAuthor').value = data.author || '';
       document.getElementById('mPrice').value = data.price || 70;
-      document.getElementById('mQty').value = data.qty || 1;
-      document.getElementById('mCover').value = data.cover || '';
+      document.getElementById('mQty').value = data.quantity || data.qty || 1;
+      document.getElementById('mStore').value = data.store || '觀塘店';
+      document.getElementById('mCover').value = data.cover_url || data.cover || '';
+      
+      document.getElementById('bookModalTitle').innerText = data.id ? '📖 編輯書籍資訊' : '📖 新增書籍資訊';
       document.getElementById('bookModal').classList.remove('hidden');
+    }
+
+    function editBook(id) {
+      const book = dbBooks.find(b => b.id === id);
+      if (book) openBookModal(book);
     }
 
     function closeBookModal() {
@@ -477,6 +487,7 @@
 
     async function saveBook(e) {
       e.preventDefault();
+      const id = document.getElementById('mBookId').value;
       const payload = {
         title: document.getElementById('mTitle').value,
         isbn: document.getElementById('mIsbn').value,
@@ -486,7 +497,13 @@
         store: document.getElementById('mStore').value,
         cover_url: document.getElementById('mCover').value
       };
-      await supabaseClient.from('books').insert([payload]);
+
+      if (id) {
+        await supabaseClient.from('books').update(payload).eq('id', id);
+      } else {
+        await supabaseClient.from('books').insert([payload]);
+      }
+
       closeBookModal();
       loadBooks();
     }
