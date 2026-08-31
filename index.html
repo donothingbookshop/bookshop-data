@@ -101,13 +101,16 @@
 
   </div>
 
-  <!-- 📖 進貨確認 Modal (包含相片上傳與新舊書選擇) -->
+  <!-- 📖 進貨/編輯書籍 Modal (同一彈窗支援新增與修改) -->
   <div id="addBookModal" class="hidden fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
     <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
       <button onclick="closeModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-lg">✕</button>
-      <h3 class="text-lg font-bold text-slate-900 mb-4">📖 確認書籍資訊並進貨</h3>
+      <h3 id="modalTitleText" class="text-lg font-bold text-slate-900 mb-4">📖 確認書籍資訊</h3>
       
       <form onsubmit="saveBook(event)" class="space-y-4">
+        <!-- 隱藏 ID (編輯時使用) -->
+        <input type="hidden" id="modalBookId">
+
         <!-- 封面預覽與自訂上傳 -->
         <div class="flex gap-4 items-center bg-slate-50 p-3 rounded-xl border">
           <img id="modalCoverPreview" src="https://via.placeholder.com/80x110?text=No+Cover" class="w-20 h-28 object-cover rounded shadow border bg-white">
@@ -117,7 +120,7 @@
               📷 選擇/拍攝新相片
               <input type="file" accept="image/*" class="hidden" onchange="previewNewCover(event)">
             </label>
-            <p class="text-[10px] text-slate-400">上傳相片將替換預設 OpenLibrary 封面</p>
+            <p class="text-[10px] text-slate-400">上傳相片將更新封面</p>
           </div>
         </div>
 
@@ -133,7 +136,7 @@
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="text-xs font-bold text-slate-600 block mb-1">ISBN：</label>
-            <input type="text" id="modalISBN" readonly class="w-full text-xs p-2.5 border rounded-lg bg-slate-100">
+            <input type="text" id="modalISBN" class="w-full text-xs p-2.5 border rounded-lg bg-slate-50">
           </div>
           <div>
             <label class="text-xs font-bold text-slate-600 block mb-1">📚 書況 (全新/二手)：</label>
@@ -157,13 +160,13 @@
             <input type="number" id="modalPrice" required min="0" placeholder="70" class="w-full text-xs p-2.5 border rounded-lg">
           </div>
           <div>
-            <label class="text-xs font-bold text-slate-600 block mb-1">進貨數量：</label>
-            <input type="number" id="modalQty" required min="1" value="1" class="w-full text-xs p-2.5 border rounded-lg">
+            <label class="text-xs font-bold text-slate-600 block mb-1">庫存數量：</label>
+            <input type="number" id="modalQty" required min="0" value="1" class="w-full text-xs p-2.5 border rounded-lg">
           </div>
         </div>
 
-        <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-blue-700 shadow-md">
-          確認入庫
+        <button type="submit" id="modalSubmitBtn" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-blue-700 shadow-md">
+          確認儲存
         </button>
       </form>
     </div>
@@ -176,7 +179,7 @@
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let allBooks = [];
-    let customCoverBase64 = null; // 儲存自訂圖片
+    let customCoverBase64 = null; // 儲存新上傳的相片
 
     window.onload = loadData;
 
@@ -189,12 +192,12 @@
       }
     }
 
-    // 1. ISBN 搜尋功能
+    // 1. ISBN 搜尋功能 (新增書籍)
     async function searchISBN() {
       const isbn = document.getElementById('isbnInput').value.trim();
       if (!isbn) return alert('請輸入 ISBN！');
 
-      customCoverBase64 = null; // 重設自訂封面
+      customCoverBase64 = null; 
 
       try {
         const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&jscmd=data&format=json`);
@@ -209,7 +212,8 @@
           coverUrl = bookData.cover ? bookData.cover.large || bookData.cover.medium : '';
         }
 
-        // 填入 Modal 供確認/修改
+        document.getElementById('modalBookId').value = ''; // 空白代表新增
+        document.getElementById('modalTitleText').innerText = '📖 確認書籍資訊並進貨';
         document.getElementById('modalTitle').value = title;
         document.getElementById('modalAuthor').value = author;
         document.getElementById('modalISBN').value = isbn;
@@ -224,7 +228,28 @@
       }
     }
 
-    // 2. 預覽上傳的新相片
+    // 2. 點擊「編輯」按鈕彈出視窗
+    function editBook(id) {
+      const book = allBooks.find(b => b.id === id);
+      if (!book) return;
+
+      customCoverBase64 = null;
+
+      document.getElementById('modalBookId').value = book.id; // 填入 ID 代表編輯
+      document.getElementById('modalTitleText').innerText = '✏️ 編輯書籍資訊';
+      document.getElementById('modalTitle').value = book.title || '';
+      document.getElementById('modalAuthor').value = book.author || '';
+      document.getElementById('modalISBN').value = book.isbn || '';
+      document.getElementById('modalStore').value = book.store || '觀塘店';
+      document.getElementById('modalPrice').value = book.price || 0;
+      document.getElementById('modalQty').value = book.quantity || 0;
+      document.getElementById('modalCondition').value = book.condition || 'new';
+      document.getElementById('modalCoverPreview').src = book.cover_url || 'https://via.placeholder.com/80x110?text=無封面';
+
+      document.getElementById('addBookModal').classList.remove('hidden');
+    }
+
+    // 3. 預覽上傳的新相片
     function previewNewCover(e) {
       const file = e.target.files[0];
       if (file) {
@@ -237,36 +262,47 @@
       }
     }
 
-    // 3. 儲存進貨資料到 Supabase
+    // 4. 儲存進貨或編輯
     async function saveBook(e) {
       e.preventDefault();
 
+      const bookId = document.getElementById('modalBookId').value;
       const finalCover = customCoverBase64 || document.getElementById('modalCoverPreview').src;
 
-      const newBook = {
+      const bookPayload = {
         title: document.getElementById('modalTitle').value,
         author: document.getElementById('modalAuthor').value,
         isbn: document.getElementById('modalISBN').value,
         store: document.getElementById('modalStore').value,
         price: parseFloat(document.getElementById('modalPrice').value),
         quantity: parseInt(document.getElementById('modalQty').value),
-        condition: document.getElementById('modalCondition').value, // 全新 / 二手
+        condition: document.getElementById('modalCondition').value,
         cover_url: finalCover.includes('placeholder') ? '' : finalCover,
-        status: 'in_stock'
+        status: parseInt(document.getElementById('modalQty').value) > 0 ? 'in_stock' : 'sold'
       };
 
-      const { error } = await supabaseClient.from('books').insert([newBook]);
+      let error;
+
+      if (bookId) {
+        // 編輯模式
+        const result = await supabaseClient.from('books').update(bookPayload).eq('id', bookId);
+        error = result.error;
+      } else {
+        // 新增模式
+        const result = await supabaseClient.from('books').insert([bookPayload]);
+        error = result.error;
+      }
 
       if (error) {
         alert('儲存失敗：' + error.message);
       } else {
-        alert('✅ 成功進貨！');
+        alert(bookId ? '✅ 成功修改書籍資料！' : '✅ 成功進貨！');
         closeModal();
         loadData();
       }
     }
 
-    // 4. 渲染列表 (加強封面顯示與新舊書標籤)
+    // 5. 渲染列表 (包含 [編輯] [賣出] [刪除] 按鈕)
     function renderTable() {
       const tbody = document.getElementById('bookTableBody');
       const search = document.getElementById('searchInput').value.toLowerCase();
@@ -309,12 +345,22 @@
               </span>
             </td>
             <td class="p-3 space-x-2">
-              <button onclick="sellBook(${book.id}, ${book.quantity})" class="text-blue-600 font-bold hover:underline">賣出</button>
+              <button onclick="editBook(${book.id})" class="text-blue-600 hover:underline">編輯</button>
+              <button onclick="sellBook(${book.id}, ${book.quantity})" class="text-emerald-600 hover:underline">賣出</button>
               <button onclick="deleteBook(${book.id})" class="text-rose-500 hover:underline">刪除</button>
             </td>
           </tr>
         `;
       });
+    }
+
+    async function sellBook(id, currentQty) {
+      if (currentQty <= 0) return alert('此書已無庫存！');
+      const newQty = currentQty - 1;
+      const newStatus = newQty === 0 ? 'sold' : 'in_stock';
+      
+      await supabaseClient.from('books').update({ quantity: newQty, status: newStatus }).eq('id', id);
+      loadData();
     }
 
     function closeModal() {
