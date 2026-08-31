@@ -7,6 +7,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <!-- 引入免費的 OCR 封面文字辨識庫 -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body class="bg-slate-100 p-4 md:p-8 font-sans">
 
@@ -40,7 +42,7 @@
       <button onclick="handleLogout()" class="text-xs bg-slate-100 text-slate-600 px-3 py-1.5 rounded hover:bg-slate-200 border">登出系統</button>
     </div>
     
-    <!-- 📊 數據看板與分店切換 -->
+    <!-- 📊 數據看板 -->
     <div class="mb-6">
       <div class="flex justify-between items-center mb-3">
         <h2 class="text-sm font-bold text-slate-700">數據概覽</h2>
@@ -71,19 +73,42 @@
       </div>
     </div>
 
-    <!-- 🔍 條碼掃描與輸入區 -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-      <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1">掃描槍 / 手動輸入 ISBN：</label>
-        <div class="flex gap-2">
-          <input type="text" id="isbnInput" placeholder="請掃描或輸入 ISBN 條碼" 
-                 class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none">
-          <button onclick="fetchBook()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 whitespace-nowrap">搜尋</button>
+    <!-- 🔍 三種進貨搜尋模式（ISBN條碼 / 封面拍照辨識 / 相機條碼） -->
+    <div class="bg-slate-50 p-4 rounded-lg border mb-6">
+      <h3 class="text-sm font-bold text-slate-700 mb-3">進貨與書籍搜尋</h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        
+        <!-- 1. ISBN 輸入 -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">1. ISBN 條碼搜尋：</label>
+          <div class="flex gap-2">
+            <input type="text" id="isbnInput" placeholder="輸入或掃描 ISBN" 
+                   class="w-full p-2 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+            <button onclick="fetchBook()" class="bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 whitespace-nowrap">搜尋</button>
+          </div>
         </div>
+
+        <!-- 2. 封面拍照找書 -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">2. 📸 拍照/上傳封面找書：</label>
+          <label class="flex items-center justify-center bg-indigo-600 text-white p-2 rounded text-sm hover:bg-indigo-700 cursor-pointer text-center">
+            <span>📷 拍攝/上傳封面</span>
+            <input type="file" id="coverImageInput" accept="image/*" capture="environment" onchange="recognizeCover(event)" class="hidden">
+          </label>
+        </div>
+
+        <!-- 3. 相機條碼掃描 -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">3. 相機掃條碼：</label>
+          <button onclick="toggleCamera()" class="w-full bg-slate-700 text-white p-2 rounded text-sm hover:bg-slate-800">開啟相機鏡頭</button>
+        </div>
+
       </div>
-      <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1">手機 / 平板鏡頭：</label>
-        <button onclick="toggleCamera()" class="w-full bg-slate-700 text-white py-2 rounded hover:bg-slate-800">開啟/關閉相機掃描</button>
+
+      <!-- OCR 辨識狀態提示 -->
+      <div id="ocrStatus" class="hidden mt-3 text-xs text-indigo-700 bg-indigo-50 p-2 rounded border border-indigo-200 flex items-center gap-2">
+        <span class="animate-spin">⏳</span>
+        <span id="ocrText">正在分析封面文字，請稍候...</span>
       </div>
     </div>
 
@@ -91,7 +116,7 @@
     <div id="reader" class="hidden mb-6 w-full max-w-sm mx-auto border rounded"></div>
 
     <!-- 📖 搜尋書籍預覽與錄入區 -->
-    <div id="bookResult" class="hidden p-4 bg-slate-50 border rounded-lg mb-6">
+    <div id="bookResult" class="hidden p-4 bg-blue-50 border border-blue-200 rounded-lg mb-6">
       <div class="flex flex-col sm:flex-row gap-4 items-start">
         <img id="bookCover" class="w-24 h-36 object-cover bg-slate-200 rounded shadow self-center sm:self-start" src="" alt="封面">
         <div class="flex-1 w-full">
@@ -99,7 +124,7 @@
           <p id="bookAuthor" class="text-slate-600 text-sm mt-1"></p>
           <p id="bookIsbn" class="text-slate-500 text-xs mt-1"></p>
           
-          <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label class="block text-xs font-semibold text-slate-600 mb-1">選擇操作分店：</label>
               <select id="bookStore" class="w-full p-1.5 border border-slate-300 rounded text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
@@ -109,9 +134,14 @@
               </select>
             </div>
             <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">售價 / 成本金額 (HKD)：</label>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">單價 (HKD)：</label>
               <input type="number" id="bookPrice" placeholder="0" value="0" min="0" 
                      class="w-full p-1.5 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">數量 (本)：</label>
+              <input type="number" id="bookQuantity" placeholder="1" value="1" min="1" 
+                     class="w-full p-1.5 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold text-blue-600">
             </div>
           </div>
 
@@ -125,7 +155,7 @@
 
     <hr class="my-6 border-slate-200">
 
-    <!-- 🔎 庫存與紀錄搜尋篩選區 -->
+    <!-- 🔎 庫存與紀錄搜尋區 -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
       <h2 class="text-lg font-bold text-slate-800">庫存與銷售紀錄</h2>
       <div class="flex flex-wrap gap-2">
@@ -140,9 +170,9 @@
         </select>
 
         <select id="statusFilter" onchange="loadRecords()" class="p-2 border border-slate-300 rounded text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
-          <option value="all">全顯示 (全部狀態)</option>
-          <option value="in_stock">僅顯示「在庫」</option>
-          <option value="sold">僅顯示「已賣出」</option>
+          <option value="all">全顯示 (狀態)</option>
+          <option value="in_stock">僅「在庫」</option>
+          <option value="sold">僅「已賣出」</option>
         </select>
       </div>
     </div>
@@ -156,7 +186,8 @@
             <th class="p-2">書名</th>
             <th class="p-2">分店</th>
             <th class="p-2">ISBN</th>
-            <th class="p-2">價格</th>
+            <th class="p-2">單價</th>
+            <th class="p-2">數量</th>
             <th class="p-2">狀態</th>
             <th class="p-2">時間</th>
             <th class="p-2 text-center">操作</th>
@@ -185,9 +216,15 @@
             <option value="荃灣店">荃灣店</option>
           </select>
         </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">價格 (HKD)：</label>
-          <input type="number" id="editPrice" class="w-full p-2 border border-slate-300 rounded text-sm outline-none focus:ring-2 focus:ring-blue-500">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">單價 (HKD)：</label>
+            <input type="number" id="editPrice" class="w-full p-2 border border-slate-300 rounded text-sm outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">數量：</label>
+            <input type="number" id="editQuantity" min="1" class="w-full p-2 border border-slate-300 rounded text-sm outline-none focus:ring-2 focus:ring-blue-500 font-bold">
+          </div>
         </div>
         <div>
           <label class="block text-xs font-semibold text-slate-600 mb-1">庫存狀態：</label>
@@ -205,7 +242,7 @@
   </div>
 
   <script>
-    // ⚠️ 記得將下面兩行改回你的真實 Supabase 金鑰！
+    // ⚠️ 請記得填入你的 Supabase URL 和 KEY
     const SUPABASE_URL = "https://gkfudwnkkrabhnmvifop.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdrZnVkd25ra3JhYmhubXZpZm9wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxNzg5NjAsImV4cCI6MjEwMzc1NDk2MH0.r3cEqVpdR0PD4TFu_2QOhDOqLiwWh5FHUVmpa168Fuk";
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -261,83 +298,119 @@
       if (e.key === 'Enter') fetchBook();
     });
 
-        async function fetchBook() {
-      const isbn = document.getElementById('isbnInput').value.trim();
-      if (!isbn) return;
+    // 1. ISBN / 書名 搜尋函式
+    async function fetchBook(searchQuery = null) {
+      const query = searchQuery || document.getElementById('isbnInput').value.trim();
+      if (!query) return;
 
       currentBook = null;
 
       try {
-        // 1. 嘗試搜尋 Google Books
-        const resGoogle = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+        // 搜尋 Google Books
+        const isIsbn = /^\d+$/.test(query.replace(/[- ]/g, ''));
+        const apiParam = isIsbn ? `isbn:${query}` : encodeURIComponent(query);
+        
+        const resGoogle = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${apiParam}`);
         const dataGoogle = await resGoogle.json();
 
         if (dataGoogle.totalItems > 0) {
           const info = dataGoogle.items[0].volumeInfo;
+          
+          // 找出 ISBN
+          let foundIsbn = query;
+          if (info.industryIdentifiers) {
+            const isbnObj = info.industryIdentifiers.find(i => i.type.includes('ISBN'));
+            if (isbnObj) foundIsbn = isbnObj.identifier;
+          }
+
           currentBook = {
-            title: info.title || '未知書名',
+            title: info.title || query,
             author: info.authors ? info.authors.join(', ') : '未知作者',
             cover_url: info.imageLinks ? info.imageLinks.thumbnail : 'https://via.placeholder.com/128x192?text=No+Cover',
-            isbn: isbn
+            isbn: foundIsbn
           };
           displayBookResult();
           return;
         }
 
-        // 2. 如果 Google 找不到，嘗試搜尋 Open Library
-        const resOL = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`);
-        const dataOL = await resOL.json();
-        const olKey = `ISBN:${isbn}`;
-
-        if (dataOL[olKey]) {
-          const info = dataOL[olKey];
-          currentBook = {
-            title: info.title || '未知書名',
-            author: info.authors ? info.authors.map(a => a.name).join(', ') : '未知作者',
-            cover_url: info.cover ? info.cover.medium : 'https://via.placeholder.com/128x192?text=No+Cover',
-            isbn: isbn
-          };
-          displayBookResult();
-          return;
-        }
-
-        // 3. 若資料庫都找不到，彈出提示手動輸入
-        const customTitle = prompt(`線上資料庫中找不到 ISBN (${isbn}) 的書籍。\n請直接手動輸入「書名」：`);
+        // 手動確認/備用輸入
+        const customTitle = prompt(`找不到「${query}」的線上紀錄。\n請輸入正確書名：`, query);
         if (customTitle) {
           const customAuthor = prompt('請輸入「作者」（若無可留空）：') || '未知作者';
           currentBook = {
             title: customTitle,
             author: customAuthor,
             cover_url: 'https://via.placeholder.com/128x192?text=Manual+Entry',
-            isbn: isbn
+            isbn: isIsbn ? query : '無ISBN'
           };
           displayBookResult();
         }
 
       } catch (err) {
-        alert('網路連線失敗或搜尋出錯，請手動輸入');
+        alert('搜尋失敗，請再試一次或手動輸入');
       }
     }
 
-    // 顯示書籍資料至畫面的輔助函式
+    // 2. 📸 拍照/上傳封面 OCR 文字辨識功能
+    async function recognizeCover(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const statusDiv = document.getElementById('ocrStatus');
+      const statusText = document.getElementById('ocrText');
+      statusDiv.classList.remove('hidden');
+      statusText.innerText = '正在讀取封面圖片內容...';
+
+      try {
+        // 呼叫 Tesseract OCR 辨識繁體中文與英文
+        const worker = await Tesseract.createWorker(['chi_tra', 'eng']);
+        statusText.innerText = '正在辨識封面書名中 (約需 3-5 秒)...';
+        
+        const ret = await worker.recognize(file);
+        await worker.terminate();
+
+        const rawText = ret.data.text;
+        // 清除雜訊，取最長的一行字作為最有可能是書名的文字
+        const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 1);
+        
+        if (lines.length === 0) {
+          alert('無法清晰辨識封面文字，請重新拍照或改用 ISBN 搜尋。');
+          statusDiv.classList.add('hidden');
+          return;
+        }
+
+        // 挑選字數最多的第一行文字進行圖書 API 搜尋
+        const detectedTitle = lines[0];
+        statusText.innerText = `辨識成功！正在搜尋：「${detectedTitle}」...`;
+        
+        await fetchBook(detectedTitle);
+        statusDiv.classList.add('hidden');
+
+      } catch (err) {
+        alert('圖片辨識出錯：' + err.message);
+        statusDiv.classList.add('hidden');
+      }
+    }
+
     function displayBookResult() {
       document.getElementById('bookTitle').innerText = currentBook.title;
       document.getElementById('bookAuthor').innerText = '作者：' + currentBook.author;
       document.getElementById('bookIsbn').innerText = 'ISBN: ' + currentBook.isbn;
       document.getElementById('bookCover').src = currentBook.cover_url;
       document.getElementById('bookPrice').value = 0;
+      document.getElementById('bookQuantity').value = 1;
       document.getElementById('bookResult').classList.remove('hidden');
     }
-
 
     async function saveBook(status) {
       if (!currentBook) return;
       const price = parseFloat(document.getElementById('bookPrice').value) || 0;
+      const quantity = parseInt(document.getElementById('bookQuantity').value) || 1;
       const store = document.getElementById('bookStore').value;
 
       const { error } = await supabaseClient
         .from('books')
-        .insert([{ ...currentBook, price, store, status }]);
+        .insert([{ ...currentBook, price, quantity, store, status }]);
 
       if (error) {
         alert('儲存失敗：' + error.message);
@@ -355,7 +428,7 @@
       const storeFilter = document.getElementById('storeFilter').value;
       const statStoreSelect = document.getElementById('statStoreSelect').value;
 
-      // 1. 看板數據統計
+      // 1. 看板數據計算
       const { data: allData } = await supabaseClient.from('books').select('*');
       if (allData) {
         let statData = allData;
@@ -363,27 +436,24 @@
           statData = allData.filter(b => b.store === statStoreSelect);
         }
 
-        const inStockCount = statData.filter(b => b.status === 'in_stock').length;
+        const inStockCount = statData
+          .filter(b => b.status === 'in_stock')
+          .reduce((sum, b) => sum + (Number(b.quantity) || 1), 0);
+
         const soldItems = statData.filter(b => b.status === 'sold');
-        const soldCount = soldItems.length;
-        const totalRevenue = soldItems.reduce((sum, b) => sum + (Number(b.price) || 0), 0);
+        const soldCount = soldItems.reduce((sum, b) => sum + (Number(b.quantity) || 1), 0);
+        const totalRevenue = soldItems.reduce((sum, b) => sum + ((Number(b.price) || 0) * (Number(b.quantity) || 1)), 0);
 
         document.getElementById('statInStock').innerText = `${inStockCount} 本`;
         document.getElementById('statSold').innerText = `${soldCount} 本`;
         document.getElementById('statTotalRevenue').innerText = `$ ${totalRevenue.toLocaleString()}`;
       }
 
-      // 2. 表格資料抓取
+      // 2. 數據列表
       let query = supabaseClient.from('books').select('*').order('created_at', { ascending: false });
 
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
-      }
-
-      if (storeFilter !== 'all') {
-        query = query.eq('store', storeFilter);
-      }
-
+      if (statusFilter !== 'all') query = query.eq('status', statusFilter);
+      if (storeFilter !== 'all') query = query.eq('store', storeFilter);
       if (searchQuery) {
         query = query.or(`title.ilike.%${searchQuery}%,isbn.ilike.%${searchQuery}%,author.ilike.%${searchQuery}%`);
       }
@@ -396,7 +466,7 @@
       tbody.innerHTML = '';
 
       if (data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-slate-400">查無相關書籍紀錄</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="p-4 text-center text-slate-400">查無相關書籍紀錄</td></tr>';
         return;
       }
 
@@ -407,12 +477,15 @@
           ? '<span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">在庫</span>'
           : '<span class="bg-rose-100 text-rose-800 text-xs px-2 py-1 rounded">已賣出</span>';
 
+        const qty = item.quantity || 1;
+
         row.innerHTML = `
           <td class="p-2"><img src="${item.cover_url}" class="w-8 h-12 object-cover"></td>
           <td class="p-2 font-medium text-slate-800">${item.title}</td>
           <td class="p-2 font-semibold text-slate-600 text-xs">${item.store || '觀塘店'}</td>
-          <td class="p-2">${item.isbn}</td>
+          <td class="p-2 text-xs">${item.isbn}</td>
           <td class="p-2 font-semibold text-slate-700">$ ${item.price || 0}</td>
+          <td class="p-2 font-bold text-blue-600">${qty} 本</td>
           <td class="p-2">${statusTag}</td>
           <td class="p-2 text-xs text-slate-400">${new Date(item.created_at).toLocaleString()}</td>
           <td class="p-2 text-center">
@@ -432,6 +505,7 @@
       document.getElementById('editTitle').value = book.title;
       document.getElementById('editStore').value = book.store || '觀塘店';
       document.getElementById('editPrice').value = book.price || 0;
+      document.getElementById('editQuantity').value = book.quantity || 1;
       document.getElementById('editStatus').value = book.status;
 
       document.getElementById('editModal').classList.remove('hidden');
@@ -446,11 +520,12 @@
       const title = document.getElementById('editTitle').value.trim();
       const store = document.getElementById('editStore').value;
       const price = parseFloat(document.getElementById('editPrice').value) || 0;
+      const quantity = parseInt(document.getElementById('editQuantity').value) || 1;
       const status = document.getElementById('editStatus').value;
 
       const { error } = await supabaseClient
         .from('books')
-        .update({ title, store, price, status })
+        .update({ title, store, price, quantity, status })
         .eq('id', id);
 
       if (error) {
