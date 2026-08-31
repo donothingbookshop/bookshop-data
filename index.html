@@ -298,99 +298,140 @@
       if (e.key === 'Enter') fetchBook();
     });
 
-    // 1. ISBN / 書名 搜尋函式
-    async function fetchBook(searchQuery = null) {
-      const query = searchQuery || document.getElementById('isbnInput').value.trim();
-      if (!query) return;
+    <script>
+  // ... 其他原本的程式碼 ...
 
-      currentBook = null;
+  // 1. 增強版書籍搜尋 (支援 ISBN 及書名關鍵字)
+  async function fetchBook(searchQuery = null) {
+    let query = searchQuery || document.getElementById('isbnInput').value.trim();
+    if (!query) return;
 
-      try {
-        // 搜尋 Google Books
-        const isIsbn = /^\d+$/.test(query.replace(/[- ]/g, ''));
-        const apiParam = isIsbn ? `isbn:${query}` : encodeURIComponent(query);
-        
-        const resGoogle = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${apiParam}`);
-        const dataGoogle = await resGoogle.json();
+    // 清除常見標點符號與多餘空白，提高命中率
+    const cleanQuery = query.replace(/[^\w\u4e00\u9fa5]/g, ' ').trim();
+    currentBook = null;
 
-        if (dataGoogle.totalItems > 0) {
-          const info = dataGoogle.items[0].volumeInfo;
-          
-          // 找出 ISBN
-          let foundIsbn = query;
-          if (info.industryIdentifiers) {
-            const isbnObj = info.industryIdentifiers.find(i => i.type.includes('ISBN'));
-            if (isbnObj) foundIsbn = isbnObj.identifier;
-          }
+    try {
+      const isIsbn = /^\d{10,13}$/.test(query.replace(/[- ]/g, ''));
+      let apiParam = isIsbn ? `isbn:${query.replace(/[- ]/g, '')}` : encodeURIComponent(cleanQuery);
 
+      // 嘗試 1：Google Books API
+      let resGoogle = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${apiParam}&maxResults=1`);
+      let dataGoogle = await resGoogle.json();
+
+      if (dataGoogle.totalItems > 0 && dataGoogle.items) {
+        const info = dataGoogle.items[0].volumeInfo;
+        let foundIsbn = isIsbn ? query : '無ISBN';
+        if (info.industryIdentifiers) {
+          const isbnObj = info.industryIdentifiers.find(i => i.type.includes('ISBN'));
+          if (isbnObj) foundIsbn = isbnObj.identifier;
+        }
+
+        currentBook = {
+          title: info.title || query,
+          author: info.authors ? info.authors.join(', ') : '未知作者',
+          cover_url: info.imageLinks ? (info.imageLinks.thumbnail || info.imageLinks.smallThumbnail) : `https://via.placeholder.com/128x192?text=${encodeURIComponent(info.title || '無封面')}`,
+          isbn: foundIsbn
+        };
+        displayBookResult();
+        return;
+      }
+
+      // 嘗試 2：Open Library API (若是 ISBN 搜尋)
+      if (isIsbn) {
+        const cleanIsbn = query.replace(/[- ]/g, '');
+        const resOL = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${cleanIsbn}&format=json&jscmd=data`);
+        const dataOL = await resOL.json();
+        const olKey = `ISBN:${cleanIsbn}`;
+
+        if (dataOL[olKey]) {
+          const info = dataOL[olKey];
           currentBook = {
             title: info.title || query,
-            author: info.authors ? info.authors.join(', ') : '未知作者',
-            cover_url: info.imageLinks ? info.imageLinks.thumbnail : 'https://via.placeholder.com/128x192?text=No+Cover',
-            isbn: foundIsbn
+            author: info.authors ? info.authors.map(a => a.name).join(', ') : '未知作者',
+            cover_url: info.cover ? info.cover.medium : `https://via.placeholder.com/128x192?text=${encodeURIComponent(info.title || '無封面')}`,
+            isbn: cleanIsbn
           };
           displayBookResult();
           return;
         }
+      }
 
-        // 手動確認/備用輸入
-        const customTitle = prompt(`找不到「${query}」的線上紀錄。\n請輸入正確書名：`, query);
-        if (customTitle) {
-          const customAuthor = prompt('請輸入「作者」（若無可留空）：') || '未知作者';
-          currentBook = {
-            title: customTitle,
-            author: customAuthor,
-            cover_url: 'https://via.placeholder.com/128x192?text=Manual+Entry',
-            isbn: isIsbn ? query : '無ISBN'
-          };
-          displayBookResult();
-        }
+      // 嘗試 3：線上無紀錄 -> 自動跳出詢問框引導手動錄入
+      const customTitle = prompt(`線上資料庫暫無「${query}」的紀錄。\n請確認或修正書名直接新增：`, cleanQuery || query);
+      if (customTitle) {
+        const customAuthor = prompt('請輸入「作者」（若無可留空）：') || '未知作者';
+        currentBook = {
+          title: customTitle,
+          author: customAuthor,
+          cover_url: `https://via.placeholder.com/128x192?text=${encodeURIComponent(customTitle)}`,
+          isbn: isIsbn ? query : '無ISBN'
+        };
+        displayBookResult();
+      }
 
-      } catch (err) {
-        alert('搜尋失敗，請再試一次或手動輸入');
+    } catch (err) {
+      alert('網路連線異常，已轉為手動輸入模式');
+      const customTitle = prompt('請輸入書名：', query);
+      if (customTitle) {
+        currentBook = {
+          title: customTitle,
+          author: '未知作者',
+          cover_url: `https://via.placeholder.com/128x192?text=${encodeURIComponent(customTitle)}`,
+          isbn: '手動錄入'
+        };
+        displayBookResult();
       }
     }
+  }
 
-    // 2. 📸 拍照/上傳封面 OCR 文字辨識功能
-    async function recognizeCover(event) {
-      const file = event.target.files[0];
-      if (!file) return;
+  // 2. 優化版封面拍照辨識 (加入確認與編輯步驟)
+  async function recognizeCover(event) {
+    const file = event.target.files[0];
+    if (!file) return;
 
-      const statusDiv = document.getElementById('ocrStatus');
-      const statusText = document.getElementById('ocrText');
-      statusDiv.classList.remove('hidden');
-      statusText.innerText = '正在讀取封面圖片內容...';
+    const statusDiv = document.getElementById('ocrStatus');
+    const statusText = document.getElementById('ocrText');
+    if (statusDiv) statusDiv.classList.remove('hidden');
+    if (statusText) statusText.innerText = '正在讀取封面圖片內容...';
 
-      try {
-        // 呼叫 Tesseract OCR 辨識繁體中文與英文
-        const worker = await Tesseract.createWorker(['chi_tra', 'eng']);
-        statusText.innerText = '正在辨識封面書名中 (約需 3-5 秒)...';
-        
-        const ret = await worker.recognize(file);
-        await worker.terminate();
+    try {
+      const worker = await Tesseract.createWorker(['chi_tra', 'eng']);
+      if (statusText) statusText.innerText = '正在辨識封面文字...';
+      
+      const ret = await worker.recognize(file);
+      await worker.terminate();
 
-        const rawText = ret.data.text;
-        // 清除雜訊，取最長的一行字作為最有可能是書名的文字
-        const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 1);
-        
-        if (lines.length === 0) {
-          alert('無法清晰辨識封面文字，請重新拍照或改用 ISBN 搜尋。');
-          statusDiv.classList.add('hidden');
-          return;
-        }
+      const rawText = ret.data.text;
+      const lines = rawText.split('\n')
+        .map(l => l.replace(/[^\w\u4e00\u9fa5]/g, '').trim())
+        .filter(l => l.length > 1);
 
-        // 挑選字數最多的第一行文字進行圖書 API 搜尋
-        const detectedTitle = lines[0];
-        statusText.innerText = `辨識成功！正在搜尋：「${detectedTitle}」...`;
-        
-        await fetchBook(detectedTitle);
-        statusDiv.classList.add('hidden');
+      if (statusDiv) statusDiv.classList.add('hidden');
 
-      } catch (err) {
-        alert('圖片辨識出錯：' + err.message);
-        statusDiv.classList.add('hidden');
+      if (lines.length === 0) {
+        const manual = prompt('圖片文字較難辨識，請直接輸入書名搜尋：');
+        if (manual) fetchBook(manual);
+        return;
       }
+
+      // 讓店員確認或微調 OCR 辨識出來的文字
+      const guessedTitle = lines[0];
+      const confirmedTitle = prompt('請確認或修飾辨識出的封面書名：', guessedTitle);
+
+      if (confirmedTitle) {
+        fetchBook(confirmedTitle);
+      }
+
+    } catch (err) {
+      if (statusDiv) statusDiv.classList.add('hidden');
+      const manual = prompt('圖片辨識失敗，請直接輸入書名：');
+      if (manual) fetchBook(manual);
     }
+  }
+
+  // ... 其他原本的程式碼 ...
+</script>
+
 
     function displayBookResult() {
       document.getElementById('bookTitle').innerText = currentBook.title;
