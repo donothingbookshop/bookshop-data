@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>書店多分店進銷存管理系統 (內部專用)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-100 p-4 md:p-8 font-sans">
+
+  <!-- 🔒 1. 店員登入視窗 -->
+  <div id="loginSection" class="max-w-md mx-auto bg-white p-8 rounded-xl shadow-md mt-12">
+    <div class="text-center mb-6">
+      <h1 class="text-2xl font-bold text-slate-800">🔒 書店多分店管理系統</h1>
+      <p class="text-xs text-slate-500 mt-1">此系統僅供內部店員使用，請先登入</p>
+    </div>
+    <form onsubmit="handleLogin(event)" class="space-y-4">
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">店員帳號 (Email)：</label>
+        <input type="email" id="loginEmail" required placeholder="staff@bookstore.com"
+               class="w-full p-2.5 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">密碼：</label>
+        <input type="password" id="loginPassword" required placeholder="••••••••"
+               class="w-full p-2.5 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+      </div>
+      <button type="submit" id="loginBtn" class="w-full bg-blue-600 text-white py-2.5 rounded font-medium hover:bg-blue-700 text-sm">
+        登入系統
+      </button>
+    </form>
+  </div>
+
+  <!-- 📚 2. 主系統畫面 -->
+  <div id="mainSection" class="hidden max-w-5xl mx-auto bg-white p-6 rounded-xl shadow-md">
+    <div class="flex justify-between items-center border-b pb-3 mb-6">
+      <h1 class="text-xl font-bold text-slate-800">📚 書店多分店進銷存系統 <span class="text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded ml-2">內部專用</span></h1>
+      <button onclick="handleLogout()" class="text-xs bg-slate-100 text-slate-600 px-3 py-1.5 rounded hover:bg-slate-200 border">登出系統</button>
+    </div>
+    
+    <!-- 📊 數據看板與分店切換 -->
+    <div class="mb-6">
+      <div class="flex justify-between items-center mb-3">
+        <h2 class="text-sm font-bold text-slate-700">數據概覽</h2>
+        <div class="flex items-center gap-2">
+          <label class="text-xs text-slate-500 font-medium">查看分店數據：</label>
+          <select id="statStoreSelect" onchange="loadRecords()" class="p-1.5 border border-slate-300 rounded text-xs bg-white focus:ring-2 focus:ring-blue-500 outline-none font-semibold">
+            <option value="all">全分店總計</option>
+            <option value="觀塘店">觀塘店</option>
+            <option value="西營盤店">西營盤店</option>
+            <option value="荃灣店">荃灣店</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+          <p class="text-xs text-blue-600 font-medium">現有庫存 (在庫)</p>
+          <p id="statInStock" class="text-2xl font-bold text-blue-900 mt-1">0 本</p>
+        </div>
+        <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-lg">
+          <p class="text-xs text-emerald-600 font-medium">累計售出本數</p>
+          <p id="statSold" class="text-2xl font-bold text-emerald-900 mt-1">0 本</p>
+        </div>
+        <div class="bg-amber-50 border border-amber-200 p-4 rounded-lg">
+          <p class="text-xs text-amber-600 font-medium">總銷售金額 (HKD)</p>
+          <p id="statTotalRevenue" class="text-2xl font-bold text-amber-900 mt-1">$ 0</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 🔍 條碼掃描與輸入區 -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">掃描槍 / 手動輸入 ISBN：</label>
+        <div class="flex gap-2">
+          <input type="text" id="isbnInput" placeholder="請掃描或輸入 ISBN 條碼" 
+                 class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none">
+          <button onclick="fetchBook()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 whitespace-nowrap">搜尋</button>
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">手機 / 平板鏡頭：</label>
+        <button onclick="toggleCamera()" class="w-full bg-slate-700 text-white py-2 rounded hover:bg-slate-800">開啟/關閉相機掃描</button>
+      </div>
+    </div>
+
+    <!-- 相機掃描視窗 -->
+    <div id="reader" class="hidden mb-6 w-full max-w-sm mx-auto border rounded"></div>
+
+    <!-- 📖 搜尋書籍預覽與錄入區 -->
+    <div id="bookResult" class="hidden p-4 bg-slate-50 border rounded-lg mb-6">
+      <div class="flex flex-col sm:flex-row gap-4 items-start">
+        <img id="bookCover" class="w-24 h-36 object-cover bg-slate-200 rounded shadow self-center sm:self-start" src="" alt="封面">
+        <div class="flex-1 w-full">
+          <h2 id="bookTitle" class="text-xl font-bold text-slate-900"></h2>
+          <p id="bookAuthor" class="text-slate-600 text-sm mt-1"></p>
+          <p id="bookIsbn" class="text-slate-500 text-xs mt-1"></p>
+          
+          <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">選擇操作分店：</label>
+              <select id="bookStore" class="w-full p-1.5 border border-slate-300 rounded text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="觀塘店">觀塘店</option>
+                <option value="西營盤店">西營盤店</option>
+                <option value="荃灣店">荃灣店</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">售價 / 成本金額 (HKD)：</label>
+              <input type="number" id="bookPrice" placeholder="0" value="0" min="0" 
+                     class="w-full p-1.5 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+          </div>
+
+          <div class="mt-4 flex flex-wrap gap-3">
+            <button onclick="saveBook('in_stock')" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">+ 紀錄為「在庫」</button>
+            <button onclick="saveBook('sold')" class="bg-rose-600 text-white px-4 py-2 rounded text-sm hover:bg-rose-700">$ 紀錄為「已賣出」</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="my-6 border-slate-200">
+
+    <!-- 🔎 庫存與紀錄搜尋篩選區 -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+      <h2 class="text-lg font-bold text-slate-800">庫存與銷售紀錄</h2>
+      <div class="flex flex-wrap gap-2">
+        <input type="text" id="searchInput" oninput="loadRecords()" placeholder="搜尋書名 / ISBN / 作者..." 
+               class="p-2 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-48">
+        
+        <select id="storeFilter" onchange="loadRecords()" class="p-2 border border-slate-300 rounded text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+          <option value="all">全部分店</option>
+          <option value="觀塘店">觀塘店</option>
+          <option value="西營盤店">西營盤店</option>
+          <option value="荃灣店">荃灣店</option>
+        </select>
+
+        <select id="statusFilter" onchange="loadRecords()" class="p-2 border border-slate-300 rounded text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+          <option value="all">全顯示 (全部狀態)</option>
+          <option value="in_stock">僅顯示「在庫」</option>
+          <option value="sold">僅顯示「已賣出」</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 📋 資料表格 -->
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm text-slate-600">
+        <thead class="bg-slate-200 text-slate-700">
+          <tr>
+            <th class="p-2">封面</th>
+            <th class="p-2">書名</th>
+            <th class="p-2">分店</th>
+            <th class="p-2">ISBN</th>
+            <th class="p-2">價格</th>
+            <th class="p-2">狀態</th>
+            <th class="p-2">時間</th>
+            <th class="p-2 text-center">操作</th>
+          </tr>
+        </thead>
+        <tbody id="inventoryTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ✏️ 編輯資料 Modal -->
+  <div id="editModal" class="hidden fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-lg max-w-md w-full p-6 shadow-xl">
+      <h3 class="text-lg font-bold text-slate-800 mb-4 border-b pb-2">編輯書籍紀錄</h3>
+      <input type="hidden" id="editId">
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">書名：</label>
+          <input type="text" id="editTitle" class="w-full p-2 border border-slate-300 rounded text-sm outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">所屬分店：</label>
+          <select id="editStore" class="w-full p-2 border border-slate-300 rounded text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+            <option value="觀塘店">觀塘店</option>
+            <option value="西營盤店">西營盤店</option>
+            <option value="荃灣店">荃灣店</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">價格 (HKD)：</label>
+          <input type="number" id="editPrice" class="w-full p-2 border border-slate-300 rounded text-sm outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">庫存狀態：</label>
+          <select id="editStatus" class="w-full p-2 border border-slate-300 rounded text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+            <option value="in_stock">在庫</option>
+            <option value="sold">已賣出</option>
+          </select>
+        </div>
+      </div>
+      <div class="mt-6 flex justify-end gap-3">
+        <button onclick="closeEditModal()" class="px-4 py-2 border rounded text-sm text-slate-600 hover:bg-slate-100">取消</button>
+        <button onclick="updateBook()" class="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">儲存更新</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ⚠️ 記得將下面兩行改回你的真實 Supabase 金鑰！
+    const SUPABASE_URL = "http://gkfudwnkkrabhnmvifop.supabase.co";
+    const SUPABASE_KEY = "gkfudwnkkrabhnmvifop";
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let html5QrcodeScanner = null;
+    let currentBook = null;
+    let recordsData = [];
+
+    window.onload = async () => {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session) {
+        showMainSystem();
+      } else {
+        showLogin();
+      }
+    };
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+      const btn = document.getElementById('loginBtn');
+
+      btn.innerText = '驗證中...';
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        alert('登入失敗：' + error.message);
+        btn.innerText = '登入系統';
+      } else {
+        showMainSystem();
+      }
+    }
+
+    async function handleLogout() {
+      await supabaseClient.auth.signOut();
+      showLogin();
+    }
+
+    function showLogin() {
+      document.getElementById('loginSection').classList.remove('hidden');
+      document.getElementById('mainSection').classList.add('hidden');
+    }
+
+    function showMainSystem() {
+      document.getElementById('loginSection').classList.add('hidden');
+      document.getElementById('mainSection').classList.remove('hidden');
+      document.getElementById('isbnInput').focus();
+      loadRecords();
+    }
+
+    document.getElementById('isbnInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') fetchBook();
+    });
+
+    async function fetchBook() {
+      const isbn = document.getElementById('isbnInput').value.trim();
+      if (!isbn) return;
+
+      try {
+        const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+        const data = await res.json();
+
+        if (data.totalItems > 0) {
+          const info = data.items[0].volumeInfo;
+          currentBook = {
+            title: info.title || '未知書名',
+            author: info.authors ? info.authors.join(', ') : '未知作者',
+            cover_url: info.imageLinks ? info.imageLinks.thumbnail : 'https://via.placeholder.com/128x192?text=No+Cover',
+            isbn: isbn
+          };
+
+          document.getElementById('bookTitle').innerText = currentBook.title;
+          document.getElementById('bookAuthor').innerText = '作者：' + currentBook.author;
+          document.getElementById('bookIsbn').innerText = 'ISBN: ' + currentBook.isbn;
+          document.getElementById('bookCover').src = currentBook.cover_url;
+          document.getElementById('bookPrice').value = 0;
+          document.getElementById('bookResult').classList.remove('hidden');
+        } else {
+          alert('Google Books 找不到此 ISBN 資料');
+        }
+      } catch (err) {
+        alert('網路連線失敗');
+      }
+    }
+
+    async function saveBook(status) {
+      if (!currentBook) return;
+      const price = parseFloat(document.getElementById('bookPrice').value) || 0;
+      const store = document.getElementById('bookStore').value;
+
+      const { error } = await supabaseClient
+        .from('books')
+        .insert([{ ...currentBook, price, store, status }]);
+
+      if (error) {
+        alert('儲存失敗：' + error.message);
+      } else {
+        document.getElementById('isbnInput').value = '';
+        document.getElementById('bookResult').classList.add('hidden');
+        document.getElementById('isbnInput').focus();
+        loadRecords();
+      }
+    }
+
+    async function loadRecords() {
+      const searchQuery = document.getElementById('searchInput').value.trim();
+      const statusFilter = document.getElementById('statusFilter').value;
+      const storeFilter = document.getElementById('storeFilter').value;
+      const statStoreSelect = document.getElementById('statStoreSelect').value;
+
+      // 1. 看板數據統計
+      const { data: allData } = await supabaseClient.from('books').select('*');
+      if (allData) {
+        let statData = allData;
+        if (statStoreSelect !== 'all') {
+          statData = allData.filter(b => b.store === statStoreSelect);
+        }
+
+        const inStockCount = statData.filter(b => b.status === 'in_stock').length;
+        const soldItems = statData.filter(b => b.status === 'sold');
+        const soldCount = soldItems.length;
+        const totalRevenue = soldItems.reduce((sum, b) => sum + (Number(b.price) || 0), 0);
+
+        document.getElementById('statInStock').innerText = `${inStockCount} 本`;
+        document.getElementById('statSold').innerText = `${soldCount} 本`;
+        document.getElementById('statTotalRevenue').innerText = `$ ${totalRevenue.toLocaleString()}`;
+      }
+
+      // 2. 表格資料抓取
+      let query = supabaseClient.from('books').select('*').order('created_at', { ascending: false });
+
+      if (statusFilter !== 'all') {
+        query = query.eq('status', statusFilter);
+      }
+
+      if (storeFilter !== 'all') {
+        query = query.eq('store', storeFilter);
+      }
+
+      if (searchQuery) {
+        query = query.or(`title.ilike.%${searchQuery}%,isbn.ilike.%${searchQuery}%,author.ilike.%${searchQuery}%`);
+      }
+
+      const { data, error } = await query;
+      if (error) return;
+
+      recordsData = data;
+      const tbody = document.getElementById('inventoryTable');
+      tbody.innerHTML = '';
+
+      if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-slate-400">查無相關書籍紀錄</td></tr>';
+        return;
+      }
+
+      data.forEach(item => {
+        const row = document.createElement('tr');
+        row.className = 'border-b hover:bg-slate-50';
+        const statusTag = item.status === 'in_stock'
+          ? '<span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">在庫</span>'
+          : '<span class="bg-rose-100 text-rose-800 text-xs px-2 py-1 rounded">已賣出</span>';
+
+        row.innerHTML = `
+          <td class="p-2"><img src="${item.cover_url}" class="w-8 h-12 object-cover"></td>
+          <td class="p-2 font-medium text-slate-800">${item.title}</td>
+          <td class="p-2 font-semibold text-slate-600 text-xs">${item.store || '觀塘店'}</td>
+          <td class="p-2">${item.isbn}</td>
+          <td class="p-2 font-semibold text-slate-700">$ ${item.price || 0}</td>
+          <td class="p-2">${statusTag}</td>
+          <td class="p-2 text-xs text-slate-400">${new Date(item.created_at).toLocaleString()}</td>
+          <td class="p-2 text-center">
+            <button onclick="openEditModal(${item.id})" class="text-blue-600 hover:text-blue-800 text-xs font-semibold px-2 py-1">編輯</button>
+            <button onclick="deleteBook(${item.id})" class="text-rose-600 hover:text-rose-800 text-xs font-semibold px-2 py-1">刪除</button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function openEditModal(id) {
+      const book = recordsData.find(b => b.id === id);
+      if (!book) return;
+
+      document.getElementById('editId').value = book.id;
+      document.getElementById('editTitle').value = book.title;
+      document.getElementById('editStore').value = book.store || '觀塘店';
+      document.getElementById('editPrice').value = book.price || 0;
+      document.getElementById('editStatus').value = book.status;
+
+      document.getElementById('editModal').classList.remove('hidden');
+    }
+
+    function closeEditModal() {
+      document.getElementById('editModal').classList.add('hidden');
+    }
+
+    async function updateBook() {
+      const id = document.getElementById('editId').value;
+      const title = document.getElementById('editTitle').value.trim();
+      const store = document.getElementById('editStore').value;
+      const price = parseFloat(document.getElementById('editPrice').value) || 0;
+      const status = document.getElementById('editStatus').value;
+
+      const { error } = await supabaseClient
+        .from('books')
+        .update({ title, store, price, status })
+        .eq('id', id);
+
+      if (error) {
+        alert('更新失敗：' + error.message);
+      } else {
+        closeEditModal();
+        loadRecords();
+      }
+    }
+
+    async function deleteBook(id) {
+      if (!confirm('確定要刪除這筆書籍紀錄嗎？')) return;
+
+      const { error } = await supabaseClient
+        .from('books')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        alert('刪除失敗：' + error.message);
+      } else {
+        loadRecords();
+      }
+    }
+
+    function toggleCamera() {
+      const readerDiv = document.getElementById('reader');
+      if (readerDiv.classList.contains('hidden')) {
+        readerDiv.classList.remove('hidden');
+        html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 150 } });
+        html5QrcodeScanner.render((decodedText) => {
+          document.getElementById('isbnInput').value = decodedText;
+          fetchBook();
+          html5QrcodeScanner.clear();
+          readerDiv.classList.add('hidden');
+        });
+      } else {
+        if (html5QrcodeScanner) html5QrcodeScanner.clear();
+        readerDiv.classList.add('hidden');
+      }
+    }
+  </script>
+</body>
+</html>
