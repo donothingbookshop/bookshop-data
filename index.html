@@ -6,6 +6,7 @@
   <title>書店及文創多分店進銷存與寄售系統</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
     @media print {
       body * { visibility: hidden; }
@@ -22,7 +23,10 @@
     <!-- 頂部 Header & 分頁頁簽 -->
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center pb-4 border-b gap-4">
       <div>
-        <h1 class="text-xl font-bold text-slate-900">📚 書店及文創進銷存與寄售系統</h1>
+        <div class="flex items-center gap-2">
+          <h1 class="text-xl font-bold text-slate-900">📚 書店多分店進銷存與寄售系統</h1>
+          <span class="bg-slate-100 text-slate-500 text-xs px-2 py-0.5 rounded-full border">內部專用</span>
+        </div>
         <p class="text-xs text-slate-500 mt-1">支持 3 間分店：觀塘店 / 旺角店 / 銅鑼灣店</p>
       </div>
       
@@ -34,20 +38,78 @@
       </div>
     </div>
 
-    <!-- TAB 1: 書籍管理 -->
+    <!-- TAB 1: 舊版書籍管理（完整還原） -->
     <div id="tabBooks" class="tab-content mt-6">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-base font-bold text-slate-800">書籍庫存清單</h2>
-        <button onclick="alert('可沿用之前的新增書籍邏輯')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700">+ 新增書籍</button>
+      <!-- 統計數據卡片 -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="bg-blue-50/50 border border-blue-100 p-4 rounded-xl">
+          <p class="text-xs text-slate-500 font-medium">現有庫存 (在地)</p>
+          <p id="statStock" class="text-2xl font-bold text-blue-900 mt-1">0 本</p>
+        </div>
+        <div class="bg-emerald-50/50 border border-emerald-100 p-4 rounded-xl">
+          <p class="text-xs text-slate-500 font-medium">累計售出本數</p>
+          <p id="statSold" class="text-2xl font-bold text-emerald-900 mt-1">0 本</p>
+        </div>
+        <div class="bg-amber-50/50 border border-amber-100 p-4 rounded-xl">
+          <p class="text-xs text-slate-500 font-medium">總銷售金額 (HKD)</p>
+          <p id="statRevenue" class="text-2xl font-bold text-amber-900 mt-1">$ 0</p>
+        </div>
       </div>
+
+      <!-- 進貨與書籍搜尋區 -->
+      <div class="bg-slate-50 p-4 rounded-xl border mb-6">
+        <h2 class="text-xs font-bold text-slate-700 mb-3">進貨與書籍搜尋</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label class="text-xs text-slate-500 mb-1 block">1. ISBN 條碼搜尋：</label>
+            <div class="flex gap-2">
+              <input type="text" id="isbnInput" placeholder="輸入或掃描 ISBN" class="w-full text-xs p-2.5 border rounded-lg bg-white">
+              <button onclick="searchISBN()" class="bg-blue-600 text-white px-4 text-xs font-bold rounded-lg hover:bg-blue-700 whitespace-nowrap">搜尋</button>
+            </div>
+          </div>
+
+          <div>
+            <label class="text-xs text-slate-500 mb-1 block">2. 📸 拍照/上傳封面找書：</label>
+            <label class="flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 px-4 rounded-lg cursor-pointer transition">
+              <span>📸 拍照/上傳封面</span>
+              <input type="file" id="coverImageInput" accept="image/*" class="hidden" onchange="uploadCoverAndSearch(this)">
+            </label>
+          </div>
+
+          <div>
+            <label class="text-xs text-slate-500 mb-1 block">3. 相機掃描碼：</label>
+            <button onclick="toggleScanner()" class="w-full bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2.5 px-4 rounded-lg">開啟相機鏡頭</button>
+          </div>
+        </div>
+        <div id="reader" class="mt-3 hidden rounded-lg overflow-hidden border"></div>
+      </div>
+
+      <!-- 庫存與銷售紀錄表格 -->
+      <div class="flex justify-between items-center mb-3">
+        <h2 class="text-sm font-bold text-slate-800">庫存與銷售紀錄</h2>
+        <div class="flex gap-2">
+          <input type="text" id="bookSearchKeyword" onkeyup="filterBooks()" placeholder="搜尋書名 / ISBN / 作者..." class="text-xs p-2 border rounded-lg w-48">
+          <select id="storeFilter" onchange="filterBooks()" class="text-xs p-2 border rounded-lg">
+            <option value="全部">分店：全部分店</option>
+            <option value="觀塘店">觀塘店</option>
+            <option value="旺角店">旺角店</option>
+            <option value="銅鑼灣店">銅鑼灣店</option>
+          </select>
+        </div>
+      </div>
+
       <div class="overflow-x-auto border rounded-xl">
         <table class="w-full text-left text-xs text-slate-600">
           <thead class="bg-slate-100 text-slate-700 font-bold border-b">
             <tr>
+              <th class="p-3 w-14">封面</th>
               <th class="p-3">書名</th>
               <th class="p-3">分店</th>
+              <th class="p-3">ISBN</th>
               <th class="p-3">單價</th>
-              <th class="p-3">庫存</th>
+              <th class="p-3">數量</th>
+              <th class="p-3">狀態</th>
+              <th class="p-3">操作</th>
             </tr>
           </thead>
           <tbody id="bookTableBody" class="divide-y"></tbody>
@@ -58,17 +120,17 @@
     <!-- TAB 2: 文創商品 -->
     <div id="tabCrafts" class="tab-content hidden mt-6">
       <div class="flex justify-between items-center mb-4">
-        <h2 class="text-base font-bold text-slate-800">文創商品清單 (Postcard / 手作)</h2>
+        <h2 class="text-sm font-bold text-slate-800">文創商品清單 (Postcard / 明信片 / 手作)</h2>
         <button onclick="openCraftModal()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-indigo-700">+ 新增文創商品</button>
       </div>
       <div class="overflow-x-auto border rounded-xl">
         <table class="w-full text-left text-xs text-slate-600">
           <thead class="bg-slate-100 text-slate-700 font-bold border-b">
             <tr>
-              <th class="p-3 w-16">相片</th>
+              <th class="p-3 w-14">相片</th>
               <th class="p-3">商品名稱</th>
-              <th class="p-3">手作人 / 創作者</th>
-              <th class="p-3">IG / 聯絡電話</th>
+              <th class="p-3">創作者/品牌</th>
+              <th class="p-3">IG/電話</th>
               <th class="p-3">分店</th>
               <th class="p-3">售價</th>
               <th class="p-3">庫存</th>
@@ -83,7 +145,7 @@
     <!-- TAB 3: 寄售單與收據 -->
     <div id="tabConsign" class="tab-content hidden mt-6">
       <div class="flex justify-between items-center mb-4">
-        <h2 class="text-base font-bold text-slate-800">寄售紀錄與單據清單</h2>
+        <h2 class="text-sm font-bold text-slate-800">寄售紀錄與單據清單</h2>
         <button onclick="openConsignmentModal()" class="bg-emerald-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-emerald-700">+ 開立新寄售單</button>
       </div>
       <div class="overflow-x-auto border rounded-xl">
@@ -106,46 +168,135 @@
 
   </div>
 
+  <!-- 📖 手動/新增書籍 Modal -->
+  <div id="bookModal" class="hidden fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+      <button onclick="closeBookModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">✕</button>
+      <h3 class="text-sm font-bold text-slate-900 mb-4">📖 新增 / 編輯書籍資訊</h3>
+      <form onsubmit="saveBook(event)" class="space-y-3 text-xs">
+        <div>
+          <label class="font-bold text-slate-600 block mb-1">書名：</label>
+          <input type="text" id="mTitle" required class="w-full p-2 border rounded-lg">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="font-bold text-slate-600 block mb-1">ISBN：</label>
+            <input type="text" id="mIsbn" class="w-full p-2 border rounded-lg">
+          </div>
+          <div>
+            <label class="font-bold text-slate-600 block mb-1">作者：</label>
+            <input type="text" id="mAuthor" class="w-full p-2 border rounded-lg">
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label class="font-bold text-slate-600 block mb-1">單價：</label>
+            <input type="number" id="mPrice" required class="w-full p-2 border rounded-lg">
+          </div>
+          <div>
+            <label class="font-bold text-slate-600 block mb-1">數量：</label>
+            <input type="number" id="mQty" value="1" required class="w-full p-2 border rounded-lg">
+          </div>
+          <div>
+            <label class="font-bold text-slate-600 block mb-1">分店：</label>
+            <select id="mStore" class="w-full p-2 border rounded-lg">
+              <option value="觀塘店">觀塘店</option>
+              <option value="旺角店">旺角店</option>
+              <option value="銅鑼灣店">銅鑼灣店</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="font-bold text-slate-600 block mb-1">封面圖片網址：</label>
+          <input type="text" id="mCover" class="w-full p-2 border rounded-lg">
+        </div>
+        <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-bold hover:bg-blue-700 mt-2">儲存書籍庫存</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 🎨 新增文創商品 Modal -->
+  <div id="craftModal" class="hidden fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+      <button onclick="closeCraftModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">✕</button>
+      <h3 class="text-sm font-bold text-slate-900 mb-4">🎨 新增文創商品</h3>
+      <form onsubmit="saveCraft(event)" class="space-y-3 text-xs">
+        <div>
+          <label class="font-bold text-slate-600 block mb-1">商品名稱：</label>
+          <input type="text" id="cName" required class="w-full p-2 border rounded-lg">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="font-bold text-slate-600 block mb-1">創作者 / 品牌：</label>
+            <input type="text" id="cCreator" class="w-full p-2 border rounded-lg">
+          </div>
+          <div>
+            <label class="font-bold text-slate-600 block mb-1">IG / 聯絡電話：</label>
+            <input type="text" id="cContact" class="w-full p-2 border rounded-lg">
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label class="font-bold text-slate-600 block mb-1">售價：</label>
+            <input type="number" id="cPrice" required class="w-full p-2 border rounded-lg">
+          </div>
+          <div>
+            <label class="font-bold text-slate-600 block mb-1">數量：</label>
+            <input type="number" id="cQty" value="1" required class="w-full p-2 border rounded-lg">
+          </div>
+          <div>
+            <label class="font-bold text-slate-600 block mb-1">分店：</label>
+            <select id="cStore" class="w-full p-2 border rounded-lg">
+              <option value="觀塘店">觀塘店</option>
+              <option value="旺角店">旺角店</option>
+              <option value="銅鑼灣店">銅鑼灣店</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" class="w-full bg-indigo-600 text-white py-2.5 rounded-lg font-bold hover:bg-indigo-700 mt-2">儲存商品</button>
+      </form>
+    </div>
+  </div>
+
   <!-- 📄 開立/編輯寄售單 Modal -->
   <div id="consignModal" class="hidden fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 overflow-y-auto">
     <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative my-8">
       <button onclick="closeConsignmentModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-lg">✕</button>
-      <h3 class="text-lg font-bold text-slate-900 mb-4">📄 開立寄售單 (Consignment Receipt)</h3>
+      <h3 class="text-base font-bold text-slate-900 mb-4">📄 開立寄售單 (Consignment Receipt)</h3>
       
-      <form onsubmit="saveConsignment(event)" class="space-y-4">
+      <form onsubmit="saveConsignment(event)" class="space-y-4 text-xs">
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="text-xs font-bold text-slate-600 block mb-1">寄售人 / 創作者 / 出版社名稱：</label>
-            <input type="text" id="consignVendor" required class="w-full text-xs p-2.5 border rounded-lg">
+            <label class="font-bold text-slate-600 block mb-1">寄售人 / 創作者 / 出版社名稱：</label>
+            <input type="text" id="consignVendor" required class="w-full p-2.5 border rounded-lg">
           </div>
           <div>
-            <label class="text-xs font-bold text-slate-600 block mb-1">聯絡電話：</label>
-            <input type="text" id="consignPhone" class="w-full text-xs p-2.5 border rounded-lg">
+            <label class="font-bold text-slate-600 block mb-1">聯絡電話：</label>
+            <input type="text" id="consignPhone" class="w-full p-2.5 border rounded-lg">
           </div>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="text-xs font-bold text-slate-600 block mb-1">寄售分店：</label>
-            <select id="consignStore" class="w-full text-xs p-2.5 border rounded-lg">
+            <label class="font-bold text-slate-600 block mb-1">寄售分店：</label>
+            <select id="consignStore" class="w-full p-2.5 border rounded-lg">
               <option value="觀塘店">觀塘店</option>
               <option value="旺角店">旺角店</option>
               <option value="銅鑼灣店">銅鑼灣店</option>
             </select>
           </div>
           <div>
-            <label class="text-xs font-bold text-slate-600 block mb-1">備註/拆帳條款：</label>
-            <input type="text" id="consignNotes" placeholder="例如：73拆分帳" class="w-full text-xs p-2.5 border rounded-lg">
+            <label class="font-bold text-slate-600 block mb-1">備註/拆帳條款：</label>
+            <input type="text" id="consignNotes" placeholder="例如：73拆分帳" class="w-full p-2.5 border rounded-lg">
           </div>
         </div>
 
-        <!-- 寄售貨品清單選擇區 -->
         <div class="border rounded-xl p-4 bg-slate-50">
           <div class="flex justify-between items-center mb-3">
-            <h4 class="text-xs font-bold text-slate-700">寄售貨品細項</h4>
+            <h4 class="font-bold text-slate-700">寄售貨品細項</h4>
             <div class="space-x-2">
-              <button type="button" onclick="addConsignItem('book')" class="bg-blue-100 text-blue-700 text-xs px-2.5 py-1.5 rounded-lg font-bold hover:bg-blue-200">+ 新增書籍</button>
-              <button type="button" onclick="addConsignItem('craft')" class="bg-indigo-100 text-indigo-700 text-xs px-2.5 py-1.5 rounded-lg font-bold hover:bg-indigo-200">+ 新增文創</button>
+              <button type="button" onclick="addConsignItem('book')" class="bg-blue-100 text-blue-700 px-2.5 py-1.5 rounded-lg font-bold hover:bg-blue-200">+ 新增書籍</button>
+              <button type="button" onclick="addConsignItem('craft')" class="bg-indigo-100 text-indigo-700 px-2.5 py-1.5 rounded-lg font-bold hover:bg-indigo-200">+ 新增文創</button>
             </div>
           </div>
           
@@ -223,22 +374,188 @@
     let dbBooks = [];
     let dbCrafts = [];
     let consignItems = [];
+    let html5QrcodeScanner = null;
 
     async function initData() {
-      const { data: books } = await supabaseClient.from('books').select('*');
-      const { data: crafts } = await supabaseClient.from('craft_items').select('*');
-      dbBooks = books || [];
-      dbCrafts = crafts || [];
-      loadConsignments();
+      await loadBooks();
+      await loadCrafts();
+      await loadConsignments();
     }
 
     function switchTab(tab) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
       document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}`).classList.remove('hidden');
-      if (tab === 'consign') loadConsignments();
+      
+      document.getElementById('tabBtnBooks').className = "px-4 py-2 text-xs font-bold rounded-lg " + (tab === 'books' ? "bg-white shadow-sm text-blue-600" : "text-slate-600 hover:text-slate-900");
+      document.getElementById('tabBtnCrafts').className = "px-4 py-2 text-xs font-bold rounded-lg " + (tab === 'crafts' ? "bg-white shadow-sm text-indigo-600" : "text-slate-600 hover:text-slate-900");
+      document.getElementById('tabBtnConsign').className = "px-4 py-2 text-xs font-bold rounded-lg " + (tab === 'consign' ? "bg-white shadow-sm text-emerald-600" : "text-slate-600 hover:text-slate-900");
     }
 
-    // 新增寄售項目 row
+    // --- 書籍功能 ---
+    async function loadBooks() {
+      const { data, error } = await supabaseClient.from('books').select('*').order('id', { ascending: false });
+      if (error) return;
+      dbBooks = data || [];
+      renderBooks(dbBooks);
+      updateStats();
+    }
+
+    function renderBooks(books) {
+      const tbody = document.getElementById('bookTableBody');
+      tbody.innerHTML = '';
+      books.forEach(b => {
+        const cover = b.cover_url ? `<img src="${b.cover_url}" class="w-10 h-12 object-cover rounded border">` : '<div class="w-10 h-12 bg-slate-100 rounded flex items-center justify-center text-slate-400 text-xs">無</div>';
+        tbody.innerHTML += `
+          <tr class="hover:bg-slate-50">
+            <td class="p-3">${cover}</td>
+            <td class="p-3 font-semibold text-slate-800">${b.title} <span class="bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0.5 rounded font-bold">全新</span></td>
+            <td class="p-3">${b.store || '觀塘店'}</td>
+            <td class="p-3 font-mono text-slate-500">${b.isbn || '-'}</td>
+            <td class="p-3 font-bold text-slate-800">$ ${b.price}</td>
+            <td class="p-3 font-bold text-blue-600">${b.quantity || 1} 本</td>
+            <td class="p-3"><span class="text-blue-600 bg-blue-50 px-2 py-1 rounded font-bold text-[11px]">在地庫存</span></td>
+            <td class="p-3 space-x-2">
+              <button onclick="sellBook(${b.id})" class="text-blue-600 hover:underline font-bold">賣出</button>
+              <button onclick="deleteBook(${b.id})" class="text-red-500 hover:underline">刪除</button>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    function updateStats() {
+      const stock = dbBooks.reduce((sum, b) => sum + (b.quantity || 1), 0);
+      document.getElementById('statStock').innerText = `${stock} 本`;
+    }
+
+    function filterBooks() {
+      const kw = document.getElementById('bookSearchKeyword').value.toLowerCase();
+      const store = document.getElementById('storeFilter').value;
+      const filtered = dbBooks.filter(b => {
+        const matchKw = (b.title || '').toLowerCase().includes(kw) || (b.isbn || '').includes(kw) || (b.author || '').toLowerCase().includes(kw);
+        const matchStore = store === '全部' || b.store === store;
+        return matchKw && matchStore;
+      });
+      renderBooks(filtered);
+    }
+
+    async function searchISBN() {
+      const isbn = document.getElementById('isbnInput').value.trim();
+      if (!isbn) return alert('請輸入 ISBN');
+      try {
+        const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&jscmd=data&format=json`);
+        const data = await res.json();
+        const bookData = data[`ISBN:${isbn}`];
+        if (bookData) {
+          openBookModal({
+            title: bookData.title,
+            isbn: isbn,
+            author: bookData.authors ? bookData.authors[0].name : '',
+            cover: bookData.cover ? bookData.cover.medium : ''
+          });
+        } else {
+          openBookModal({ isbn: isbn });
+        }
+      } catch (e) {
+        openBookModal({ isbn: isbn });
+      }
+    }
+
+    function openBookModal(data = {}) {
+      document.getElementById('mTitle').value = data.title || '';
+      document.getElementById('mIsbn').value = data.isbn || '';
+      document.getElementById('mAuthor').value = data.author || '';
+      document.getElementById('mPrice').value = data.price || 70;
+      document.getElementById('mQty').value = data.qty || 1;
+      document.getElementById('mCover').value = data.cover || '';
+      document.getElementById('bookModal').classList.remove('hidden');
+    }
+
+    function closeBookModal() {
+      document.getElementById('bookModal').classList.add('hidden');
+    }
+
+    async function saveBook(e) {
+      e.preventDefault();
+      const payload = {
+        title: document.getElementById('mTitle').value,
+        isbn: document.getElementById('mIsbn').value,
+        author: document.getElementById('mAuthor').value,
+        price: parseFloat(document.getElementById('mPrice').value),
+        quantity: parseInt(document.getElementById('mQty').value),
+        store: document.getElementById('mStore').value,
+        cover_url: document.getElementById('mCover').value
+      };
+      await supabaseClient.from('books').insert([payload]);
+      closeBookModal();
+      loadBooks();
+    }
+
+    async function sellBook(id) {
+      const book = dbBooks.find(b => b.id === id);
+      if (book && book.quantity > 1) {
+        await supabaseClient.from('books').update({ quantity: book.quantity - 1 }).eq('id', id);
+      } else {
+        await supabaseClient.from('books').delete().eq('id', id);
+      }
+      loadBooks();
+    }
+
+    async function deleteBook(id) {
+      if (confirm('確定要刪除這本書？')) {
+        await supabaseClient.from('books').delete().eq('id', id);
+        loadBooks();
+      }
+    }
+
+    // --- 文創商品功能 ---
+    async function loadCrafts() {
+      const { data } = await supabaseClient.from('craft_items').select('*').order('id', { ascending: false });
+      dbCrafts = data || [];
+      const tbody = document.getElementById('craftTableBody');
+      tbody.innerHTML = '';
+      dbCrafts.forEach(c => {
+        tbody.innerHTML += `
+          <tr class="hover:bg-slate-50">
+            <td class="p-3"><div class="w-10 h-10 bg-indigo-50 rounded flex items-center justify-center text-indigo-500 font-bold">🎨</div></td>
+            <td class="p-3 font-semibold text-slate-800">${c.name}</td>
+            <td class="p-3">${c.creator_name || '-'}</td>
+            <td class="p-3 text-slate-500">${c.creator_ig || c.creator_phone || '-'}</td>
+            <td class="p-3">${c.store || '觀塘店'}</td>
+            <td class="p-3 font-bold text-slate-800">$ ${c.price}</td>
+            <td class="p-3 font-bold text-indigo-600">${c.quantity || 1} 件</td>
+            <td class="p-3"><button onclick="deleteCraft(${c.id})" class="text-red-500 hover:underline">刪除</button></td>
+          </tr>
+        `;
+      });
+    }
+
+    function openCraftModal() { document.getElementById('craftModal').classList.remove('hidden'); }
+    function closeCraftModal() { document.getElementById('craftModal').classList.add('hidden'); }
+
+    async function saveCraft(e) {
+      e.preventDefault();
+      const payload = {
+        name: document.getElementById('cName').value,
+        creator_name: document.getElementById('cCreator').value,
+        creator_ig: document.getElementById('cContact').value,
+        price: parseFloat(document.getElementById('cPrice').value),
+        quantity: parseInt(document.getElementById('cQty').value),
+        store: document.getElementById('cStore').value
+      };
+      await supabaseClient.from('craft_items').insert([payload]);
+      closeCraftModal();
+      loadCrafts();
+    }
+
+    async function deleteCraft(id) {
+      if (confirm('確定刪除？')) {
+        await supabaseClient.from('craft_items').delete().eq('id', id);
+        loadCrafts();
+      }
+    }
+
+    // --- 寄售單功能 ---
     function addConsignItem(type) {
       consignItems.push({ type, name: '', price: 0, qty: 1 });
       renderConsignItemRows();
@@ -256,7 +573,8 @@
 
         let options = `<option value="">-- 請選擇${item.type === 'book' ? '書籍' : '文創'} --</option>`;
         list.forEach(opt => {
-          options += `<option value="${opt.name}" data-price="${opt.price}" ${opt.name === item.name ? 'selected' : ''}>${opt.name} ($${opt.price})</option>`;
+          const title = opt.title || opt.name;
+          options += `<option value="${title}" data-price="${opt.price}" ${title === item.name ? 'selected' : ''}>${title} ($${opt.price})</option>`;
         });
 
         container.innerHTML += `
@@ -325,7 +643,7 @@
       const tbody = document.getElementById('consignTableBody');
       tbody.innerHTML = '';
 
-      data.forEach(c => {
+      (data || []).forEach(c => {
         tbody.innerHTML += `
           <tr class="hover:bg-slate-50">
             <td class="p-3 font-mono font-bold text-blue-600">${c.receipt_no}</td>
@@ -356,7 +674,7 @@
 
       const tbody = document.getElementById('printItemsBody');
       tbody.innerHTML = '';
-      data.items_json.forEach(item => {
+      (data.items_json || []).forEach(item => {
         tbody.innerHTML += `
           <tr>
             <td class="py-2">${item.type === 'book' ? '書籍' : '文創'}</td>
