@@ -66,7 +66,7 @@
 
     <!-- TAB 1: 書籍管理 -->
     <div id="tabBooks" class="tab-content mt-6">
-      <!-- 統計數據卡片 (修正：銷售金額與累計本數變動) -->
+      <!-- 統計數據卡片 -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div class="bg-blue-50/50 border border-blue-100 p-4 rounded-xl">
           <p class="text-xs text-slate-500 font-medium">現有庫存 (在地)</p>
@@ -120,7 +120,7 @@
           <!-- 關鍵字搜尋 -->
           <input type="text" id="bookSearchKeyword" onkeyup="filterBooks()" placeholder="搜尋書名 / ISBN / 作者..." class="text-xs p-2 border rounded-lg w-48">
           
-          <!-- 新增：狀態篩選器 -->
+          <!-- 狀態篩選器 -->
           <select id="statusFilter" onchange="filterBooks()" class="text-xs p-2 border rounded-lg bg-white font-medium">
             <option value="ALL">所有狀態 (在地 + 已售罄)</option>
             <option value="AVAILABLE" selected>僅顯示在地庫存</option>
@@ -274,7 +274,7 @@
           </div>
         </div>
 
-        <!-- 封面圖片相片 Upload 與網址欄 -->
+        <!-- 封面圖片上傳/網址欄 -->
         <div>
           <label class="font-bold text-slate-600 block mb-1">封面圖片：</label>
           <div class="flex items-center gap-2 mb-2">
@@ -290,7 +290,7 @@
           </div>
         </div>
 
-        <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-bold hover:bg-blue-700 mt-2">儲存書籍資訊</button>
+        <button type="submit" id="saveBookBtn" class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-bold hover:bg-blue-700 mt-2">儲存書籍資訊</button>
       </form>
     </div>
   </div>
@@ -455,7 +455,7 @@
     let dbCrafts = [];
     let consignItems = [];
 
-    // ---  Auth 登入系統邏輯 ---
+    // --- Auth 登入系統邏輯 ---
     async function checkAuth() {
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (session) {
@@ -509,24 +509,28 @@
     // --- 書籍功能 ---
     async function loadBooks() {
       const { data, error } = await supabaseClient.from('books').select('*').order('id', { ascending: false });
-      if (error) return;
+      if (error) {
+        console.error('載入書籍失敗:', error);
+        return;
+      }
       dbBooks = data || [];
-      filterBooks(); // 透過 filterBooks 進行渲染
+      filterBooks();
     }
 
     function renderBooks(books) {
       const tbody = document.getElementById('bookTableBody');
       tbody.innerHTML = '';
       
-      if (books.length === 0) {
+      if (!books || books.length === 0) {
         tbody.innerHTML = `<tr><td colspan="9" class="text-center p-6 text-slate-400">沒有符合條件的紀錄</td></tr>`;
+        updateStats();
         return;
       }
 
       books.forEach(b => {
-        const cover = b.cover_url ? `<img src="${b.cover_url}" class="w-10 h-12 object-cover rounded border">` : '<div class="w-10 h-12 bg-slate-100 rounded flex items-center justify-center text-slate-400 text-xs">無</div>';
+        const coverUrl = b.cover_url || b.cover || '';
+        const cover = coverUrl ? `<img src="${coverUrl}" class="w-10 h-12 object-cover rounded border">` : '<div class="w-10 h-12 bg-slate-100 rounded flex items-center justify-center text-slate-400 text-xs">無</div>';
         
-        // 屬性標籤相容處理
         const isConsign = b.is_consignment || b.type === 'consign' || b.consignment || false;
         const typeBadge = isConsign 
           ? `<span class="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] px-1.5 py-0.5 rounded font-bold">✍️ 作者寄售</span>` 
@@ -534,8 +538,7 @@
 
         const consignDetail = isConsign && b.consign_split ? `<div class="text-[10px] text-amber-700 mt-0.5">${b.consign_split}</div>` : '';
 
-        // 庫存與狀態欄位相容處理
-        const qty = b.quantity !== undefined ? b.quantity : (b.qty || 0);
+        const qty = b.quantity !== undefined ? b.quantity : (b.qty !== undefined ? b.qty : 0);
         const isSold = qty <= 0 || b.status === 'SOLD' || b.status === 'sold_out';
         
         const statusBadge = isSold 
@@ -546,7 +549,7 @@
           <tr class="hover:bg-slate-50 ${isSold ? 'bg-slate-50/60' : ''}">
             <td class="p-3">${cover}</td>
             <td class="p-3 font-semibold ${isSold ? 'line-through text-slate-400' : 'text-slate-800'}">
-              ${b.title}
+              ${b.title || '無標題'}
               <div class="text-slate-400 text-[11px] font-normal">${b.author || '未知作者'}</div>
             </td>
             <td class="p-3">${typeBadge}${consignDetail}</td>
@@ -570,15 +573,14 @@
       updateStats();
     }
 
-    // 修正：計算並更新頂部數據統計看板（現有庫存、累計售出、總金額）
     function updateStats() {
       let stock = 0;
       let totalSoldCount = 0;
       let totalSoldAmount = 0;
 
       dbBooks.forEach(b => {
-        const qty = b.quantity !== undefined ? b.quantity : (b.qty || 0);
-        const soldQty = b.sold_quantity || 0; // 讀取已售數量
+        const qty = b.quantity !== undefined ? b.quantity : (b.qty !== undefined ? b.qty : 0);
+        const soldQty = b.sold_quantity || 0;
 
         stock += qty;
         totalSoldCount += soldQty;
@@ -590,14 +592,13 @@
       document.getElementById('statRevenue').innerText = `$ ${totalSoldAmount.toLocaleString()}`;
     }
 
-    // 修正：新增 statusFilter 的條件篩選
     function filterBooks() {
-      const kw = document.getElementById('bookSearchKeyword').value.toLowerCase();
+      const kw = (document.getElementById('bookSearchKeyword').value || '').toLowerCase();
       const store = document.getElementById('storeFilter').value;
       const statusFilter = document.getElementById('statusFilter').value;
 
       const filtered = dbBooks.filter(b => {
-        const qty = b.quantity !== undefined ? b.quantity : (b.qty || 0);
+        const qty = b.quantity !== undefined ? b.quantity : (b.qty !== undefined ? b.qty : 0);
         const isSold = qty <= 0 || b.status === 'SOLD' || b.status === 'sold_out';
 
         const matchKw = (b.title || '').toLowerCase().includes(kw) || (b.isbn || '').includes(kw) || (b.author || '').toLowerCase().includes(kw);
@@ -670,7 +671,7 @@
       document.getElementById('mAuthorPhone').value = data.author_phone || '';
       document.getElementById('mConsignSplit').value = data.consign_split || '';
       document.getElementById('mPrice').value = data.price || 70;
-      document.getElementById('mQty').value = data.quantity !== undefined ? data.quantity : (data.qty || 1);
+      document.getElementById('mQty').value = data.quantity !== undefined ? data.quantity : (data.qty !== undefined ? data.qty : 1);
       document.getElementById('mStore').value = data.store || '觀塘店';
       
       const coverUrl = data.cover_url || data.cover || '';
@@ -699,12 +700,20 @@
       document.getElementById('bookModal').classList.add('hidden');
     }
 
+    // 關鍵修復：同時寫入多名稱欄位（防止 Supabase 資料庫 schema 命名不合）並加上錯誤捕捉提示
     async function saveBook(e) {
       e.preventDefault();
+      const saveBtn = document.getElementById('saveBookBtn');
+      saveBtn.disabled = true;
+      saveBtn.innerText = '儲存中...';
+
       const id = document.getElementById('mBookId').value;
       const isConsignment = document.getElementById('mIsConsignment').value === 'true';
-      const qty = parseInt(document.getElementById('mQty').value);
+      const qty = parseInt(document.getElementById('mQty').value) || 0;
+      const priceVal = parseFloat(document.getElementById('mPrice').value) || 0;
+      const coverVal = document.getElementById('mCover').value;
 
+      // 雙向相容寫入 (quantity/qty, cover_url/cover)
       const payload = {
         title: document.getElementById('mTitle').value,
         isbn: document.getElementById('mIsbn').value,
@@ -713,25 +722,38 @@
         type: isConsignment ? 'consign' : 'buyout',
         author_phone: isConsignment ? document.getElementById('mAuthorPhone').value : null,
         consign_split: isConsignment ? document.getElementById('mConsignSplit').value : null,
-        price: parseFloat(document.getElementById('mPrice').value),
+        price: priceVal,
         quantity: qty,
+        qty: qty,
         store: document.getElementById('mStore').value,
-        cover_url: document.getElementById('mCover').value,
+        cover_url: coverVal,
+        cover: coverVal,
         status: qty > 0 ? 'in_stock' : 'sold_out'
       };
 
+      let error = null;
+
       if (id) {
-        await supabaseClient.from('books').update(payload).eq('id', id);
+        const res = await supabaseClient.from('books').update(payload).eq('id', id);
+        error = res.error;
       } else {
-        payload.sold_quantity = 0; // 新增時銷售數量為 0
-        await supabaseClient.from('books').insert([payload]);
+        payload.sold_quantity = 0;
+        const res = await supabaseClient.from('books').insert([payload]);
+        error = res.error;
       }
 
-      closeBookModal();
-      loadBooks();
+      saveBtn.disabled = false;
+      saveBtn.innerText = '儲存書籍資訊';
+
+      if (error) {
+        console.error('Supabase 寫入失敗詳情:', error);
+        alert('❌ 儲存失敗！\n原因：' + error.message + '\n提示：請檢查 Supabase 的 RLS 權限或資料表欄位設定。');
+      } else {
+        closeBookModal();
+        await loadBooks(); // 重新讀取
+      }
     }
 
-    // 修正：按下賣出時，減少在地庫存，同時增加已售本數並寫入資料庫
     async function sellBook(id) {
       const book = dbBooks.find(b => b.id === id);
       if (!book) return;
@@ -746,6 +768,7 @@
 
         await supabaseClient.from('books').update({ 
           quantity: newQty, 
+          qty: newQty,
           sold_quantity: newSold,
           status: newStatus 
         }).eq('id', id);
@@ -754,7 +777,6 @@
       }
     }
 
-    // 新增：回復未出售（恢復庫存與賣出統計）
     async function restoreBook(id) {
       const book = dbBooks.find(b => b.id === id);
       if (!book) return;
@@ -767,6 +789,7 @@
 
       await supabaseClient.from('books').update({ 
         quantity: newQty, 
+        qty: newQty,
         sold_quantity: newSold,
         status: 'in_stock' 
       }).eq('id', id);
