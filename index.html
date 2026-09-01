@@ -66,7 +66,7 @@
 
     <!-- TAB 1: 書籍管理 -->
     <div id="tabBooks" class="tab-content mt-6">
-      <!-- 統計數據卡片 -->
+      <!-- 統計數據卡片 (修正：銷售金額與累計本數變動) -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div class="bg-blue-50/50 border border-blue-100 p-4 rounded-xl">
           <p class="text-xs text-slate-500 font-medium">現有庫存 (在地)</p>
@@ -86,7 +86,6 @@
       <div class="bg-slate-50 p-4 rounded-xl border mb-6">
         <div class="flex justify-between items-center mb-3">
           <h2 class="text-xs font-bold text-slate-700">進貨與書籍搜尋</h2>
-          <!-- 圖 1 右上角按鈕補回 -->
           <button onclick="openBookModal()" class="bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-blue-700 shadow-sm transition">+ 手動新增書籍 / 作者寄售</button>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -115,11 +114,21 @@
       </div>
 
       <!-- 庫存與銷售紀錄表格 -->
-      <div class="flex justify-between items-center mb-3">
+      <div class="flex flex-wrap justify-between items-center mb-3 gap-2">
         <h2 class="text-sm font-bold text-slate-800">庫存與銷售紀錄</h2>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
+          <!-- 關鍵字搜尋 -->
           <input type="text" id="bookSearchKeyword" onkeyup="filterBooks()" placeholder="搜尋書名 / ISBN / 作者..." class="text-xs p-2 border rounded-lg w-48">
-          <select id="storeFilter" onchange="filterBooks()" class="text-xs p-2 border rounded-lg">
+          
+          <!-- 新增：狀態篩選器 -->
+          <select id="statusFilter" onchange="filterBooks()" class="text-xs p-2 border rounded-lg bg-white font-medium">
+            <option value="ALL">所有狀態 (在地 + 已售罄)</option>
+            <option value="AVAILABLE" selected>僅顯示在地庫存</option>
+            <option value="SOLD">僅顯示已售罄/已售出</option>
+          </select>
+
+          <!-- 分店篩選器 -->
+          <select id="storeFilter" onchange="filterBooks()" class="text-xs p-2 border rounded-lg bg-white">
             <option value="全部">分店：全部分店</option>
             <option value="觀塘店">觀塘店</option>
             <option value="西營盤店">西營盤店</option>
@@ -502,13 +511,18 @@
       const { data, error } = await supabaseClient.from('books').select('*').order('id', { ascending: false });
       if (error) return;
       dbBooks = data || [];
-      renderBooks(dbBooks);
-      updateStats();
+      filterBooks(); // 透過 filterBooks 進行渲染
     }
 
     function renderBooks(books) {
       const tbody = document.getElementById('bookTableBody');
       tbody.innerHTML = '';
+      
+      if (books.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center p-6 text-slate-400">沒有符合條件的紀錄</td></tr>`;
+        return;
+      }
+
       books.forEach(b => {
         const cover = b.cover_url ? `<img src="${b.cover_url}" class="w-10 h-12 object-cover rounded border">` : '<div class="w-10 h-12 bg-slate-100 rounded flex items-center justify-center text-slate-400 text-xs">無</div>';
         
@@ -522,45 +536,80 @@
 
         // 庫存與狀態欄位相容處理
         const qty = b.quantity !== undefined ? b.quantity : (b.qty || 0);
-        const statusText = b.status === 'in_stock' || qty > 0 ? '在地庫存' : '已售罄';
+        const isSold = qty <= 0 || b.status === 'SOLD' || b.status === 'sold_out';
+        
+        const statusBadge = isSold 
+          ? `<span class="text-emerald-700 bg-emerald-100 px-2 py-1 rounded font-bold text-[11px]">已售罄 / 已售出</span>`
+          : `<span class="text-blue-600 bg-blue-50 px-2 py-1 rounded font-bold text-[11px]">在地庫存</span>`;
 
-        // 補回圖 1 圈選的操作按鈕：賣出、編輯、刪除
         tbody.innerHTML += `
-          <tr class="hover:bg-slate-50">
+          <tr class="hover:bg-slate-50 ${isSold ? 'bg-slate-50/60' : ''}">
             <td class="p-3">${cover}</td>
-            <td class="p-3 font-semibold text-slate-800">
+            <td class="p-3 font-semibold ${isSold ? 'line-through text-slate-400' : 'text-slate-800'}">
               ${b.title}
-              <div class="text-slate-400 text-[11px]">${b.author || '未知作者'}</div>
+              <div class="text-slate-400 text-[11px] font-normal">${b.author || '未知作者'}</div>
             </td>
             <td class="p-3">${typeBadge}${consignDetail}</td>
             <td class="p-3">${b.store || '觀塘店'}</td>
             <td class="p-3 font-mono text-slate-500">${b.isbn || '-'}</td>
             <td class="p-3 font-bold text-slate-800">$ ${b.price || 0}</td>
-            <td class="p-3 font-bold text-blue-600">${qty} 本</td>
-            <td class="p-3"><span class="text-blue-600 bg-blue-50 px-2 py-1 rounded font-bold text-[11px]">${statusText}</span></td>
+            <td class="p-3 font-bold ${isSold ? 'text-slate-400' : 'text-blue-600'}">${qty} 本</td>
+            <td class="p-3">${statusBadge}</td>
             <td class="p-3 space-x-2 whitespace-nowrap">
-              <button onclick="sellBook(${b.id})" class="text-blue-600 hover:underline font-bold">賣出</button>
+              ${isSold
+                ? `<button onclick="restoreBook(${b.id})" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 px-2.5 py-1 rounded border border-amber-200 font-bold">↩️ 回復未出售</button>`
+                : `<button onclick="sellBook(${b.id})" class="text-blue-600 hover:underline font-bold">賣出</button>`
+              }
               <button onclick="editBook(${b.id})" class="text-slate-600 hover:underline font-bold">編輯</button>
               <button onclick="deleteBook(${b.id})" class="text-red-500 hover:underline font-bold">刪除</button>
             </td>
           </tr>
         `;
       });
+
+      updateStats();
     }
 
+    // 修正：計算並更新頂部數據統計看板（現有庫存、累計售出、總金額）
     function updateStats() {
-      const stock = dbBooks.reduce((sum, b) => sum + (b.quantity !== undefined ? b.quantity : (b.qty || 0)), 0);
+      let stock = 0;
+      let totalSoldCount = 0;
+      let totalSoldAmount = 0;
+
+      dbBooks.forEach(b => {
+        const qty = b.quantity !== undefined ? b.quantity : (b.qty || 0);
+        const soldQty = b.sold_quantity || 0; // 讀取已售數量
+
+        stock += qty;
+        totalSoldCount += soldQty;
+        totalSoldAmount += (soldQty * (b.price || 0));
+      });
+
       document.getElementById('statStock').innerText = `${stock} 本`;
+      document.getElementById('statSold').innerText = `${totalSoldCount} 本`;
+      document.getElementById('statRevenue').innerText = `$ ${totalSoldAmount.toLocaleString()}`;
     }
 
+    // 修正：新增 statusFilter 的條件篩選
     function filterBooks() {
       const kw = document.getElementById('bookSearchKeyword').value.toLowerCase();
       const store = document.getElementById('storeFilter').value;
+      const statusFilter = document.getElementById('statusFilter').value;
+
       const filtered = dbBooks.filter(b => {
+        const qty = b.quantity !== undefined ? b.quantity : (b.qty || 0);
+        const isSold = qty <= 0 || b.status === 'SOLD' || b.status === 'sold_out';
+
         const matchKw = (b.title || '').toLowerCase().includes(kw) || (b.isbn || '').includes(kw) || (b.author || '').toLowerCase().includes(kw);
         const matchStore = store === '全部' || b.store === store;
-        return matchKw && matchStore;
+        
+        let matchStatus = true;
+        if (statusFilter === 'AVAILABLE') matchStatus = !isSold;
+        if (statusFilter === 'SOLD') matchStatus = isSold;
+
+        return matchKw && matchStore && matchStatus;
       });
+
       renderBooks(filtered);
     }
 
@@ -654,6 +703,7 @@
       e.preventDefault();
       const id = document.getElementById('mBookId').value;
       const isConsignment = document.getElementById('mIsConsignment').value === 'true';
+      const qty = parseInt(document.getElementById('mQty').value);
 
       const payload = {
         title: document.getElementById('mTitle').value,
@@ -664,15 +714,16 @@
         author_phone: isConsignment ? document.getElementById('mAuthorPhone').value : null,
         consign_split: isConsignment ? document.getElementById('mConsignSplit').value : null,
         price: parseFloat(document.getElementById('mPrice').value),
-        quantity: parseInt(document.getElementById('mQty').value),
+        quantity: qty,
         store: document.getElementById('mStore').value,
         cover_url: document.getElementById('mCover').value,
-        status: parseInt(document.getElementById('mQty').value) > 0 ? 'in_stock' : 'sold_out'
+        status: qty > 0 ? 'in_stock' : 'sold_out'
       };
 
       if (id) {
         await supabaseClient.from('books').update(payload).eq('id', id);
       } else {
+        payload.sold_quantity = 0; // 新增時銷售數量為 0
         await supabaseClient.from('books').insert([payload]);
       }
 
@@ -680,14 +731,46 @@
       loadBooks();
     }
 
+    // 修正：按下賣出時，減少在地庫存，同時增加已售本數並寫入資料庫
     async function sellBook(id) {
       const book = dbBooks.find(b => b.id === id);
-      const currentQty = book.quantity !== undefined ? book.quantity : (book.qty || 1);
-      if (book && currentQty > 1) {
-        await supabaseClient.from('books').update({ quantity: currentQty - 1 }).eq('id', id);
-      } else {
-        await supabaseClient.from('books').delete().eq('id', id);
+      if (!book) return;
+
+      const currentQty = book.quantity !== undefined ? book.quantity : (book.qty || 0);
+      const currentSold = book.sold_quantity || 0;
+
+      if (currentQty > 0) {
+        const newQty = currentQty - 1;
+        const newSold = currentSold + 1;
+        const newStatus = newQty === 0 ? 'sold_out' : 'in_stock';
+
+        await supabaseClient.from('books').update({ 
+          quantity: newQty, 
+          sold_quantity: newSold,
+          status: newStatus 
+        }).eq('id', id);
+
+        loadBooks();
       }
+    }
+
+    // 新增：回復未出售（恢復庫存與賣出統計）
+    async function restoreBook(id) {
+      const book = dbBooks.find(b => b.id === id);
+      if (!book) return;
+
+      const currentQty = book.quantity !== undefined ? book.quantity : (book.qty || 0);
+      const currentSold = book.sold_quantity || 0;
+
+      const newQty = currentQty + 1;
+      const newSold = Math.max(0, currentSold - 1);
+
+      await supabaseClient.from('books').update({ 
+        quantity: newQty, 
+        sold_quantity: newSold,
+        status: 'in_stock' 
+      }).eq('id', id);
+
       loadBooks();
     }
 
