@@ -110,7 +110,21 @@
       <div class="flex flex-wrap justify-between items-center mb-3 gap-2">
         <h2 class="text-sm font-bold text-slate-800">庫存與銷售紀錄</h2>
         <div class="flex flex-wrap gap-2">
-          <input type="text" id="bookSearchKeyword" onkeyup="filterBooks()" placeholder="搜尋書名 / ISBN / 作者..." class="text-xs p-2 border rounded-lg w-48">
+          <input type="text" id="bookSearchKeyword" onkeyup="filterBooks()" placeholder="搜尋書名 / ISBN / 作者..." class="text-xs p-2 border rounded-lg w-40">
+          
+          <!-- 新增：書籍主題篩選 下拉選單 -->
+          <select id="categoryFilter" onchange="filterBooks()" class="text-xs p-2 border rounded-lg bg-white font-medium">
+            <option value="ALL">所有主題分類</option>
+            <option value="文學小說">📖 文學小說</option>
+            <option value="人文社科">🏛️ 人文社科</option>
+            <option value="藝術設計">🎨 藝術設計</option>
+            <option value="生活風格">🌿 生活風格</option>
+            <option value="心理勵志">💡 心理勵志</option>
+            <option value="獨立出版">✍️ 獨立出版 / Zine</option>
+            <option value="童書繪本">🎈 童書繪本</option>
+            <option value="其他">📌 其他</option>
+          </select>
+
           <select id="statusFilter" onchange="filterBooks()" class="text-xs p-2 border rounded-lg bg-white font-medium">
             <option value="ALL">所有狀態 (在地 + 已售罄)</option>
             <option value="AVAILABLE" selected>僅顯示在地庫存</option>
@@ -131,6 +145,7 @@
             <tr>
               <th class="p-3 w-14">封面</th>
               <th class="p-3">書名</th>
+              <th class="p-3">主題</th>
               <th class="p-3">屬性</th>
               <th class="p-3">分店</th>
               <th class="p-3">ISBN</th>
@@ -215,6 +230,21 @@
         <div>
           <label class="font-bold text-slate-600 block mb-1">書名：</label>
           <input type="text" id="mTitle" required class="w-full p-2 border rounded-lg">
+        </div>
+
+        <!-- 新增：書籍主題分類 下拉選單 -->
+        <div>
+          <label class="font-bold text-slate-600 block mb-1">書籍主題 (分類)：</label>
+          <select id="mCategory" class="w-full p-2 border rounded-lg bg-white font-medium">
+            <option value="文學小說">📖 文學小說</option>
+            <option value="人文社科">🏛️ 人文社科</option>
+            <option value="藝術設計">🎨 藝術設計</option>
+            <option value="生活風格">🌿 生活風格</option>
+            <option value="心理勵志">💡 心理勵志</option>
+            <option value="獨立出版">✍️ 獨立出版 / Zine</option>
+            <option value="童書繪本">🎈 童書繪本</option>
+            <option value="其他">📌 其他</option>
+          </select>
         </div>
 
         <div class="grid grid-cols-2 gap-2">
@@ -492,7 +522,7 @@
       tbody.innerHTML = '';
       
       if (!books || books.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="text-center p-6 text-slate-400">沒有符合條件的紀錄</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="text-center p-6 text-slate-400">沒有符合條件的紀錄</td></tr>`;
         updateStats();
         return;
       }
@@ -513,6 +543,8 @@
           ? `<span class="text-emerald-700 bg-emerald-100 px-2 py-1 rounded font-bold text-[11px]">已售罄 / 已售出</span>`
           : `<span class="text-blue-600 bg-blue-50 px-2 py-1 rounded font-bold text-[11px]">在地庫存</span>`;
 
+        const categoryBadge = `<span class="bg-slate-100 text-slate-700 text-[11px] px-2 py-0.5 rounded border border-slate-200 font-medium">${b.category || '未分類'}</span>`;
+
         tbody.innerHTML += `
           <tr class="hover:bg-slate-50 ${isSold ? 'bg-slate-50/60' : ''}">
             <td class="p-3">${cover}</td>
@@ -520,6 +552,7 @@
               ${b.title || '無標題'}
               <div class="text-slate-400 text-[11px] font-normal">${b.author || '未知作者'}</div>
             </td>
+            <td class="p-3">${categoryBadge}</td>
             <td class="p-3">${typeBadge}</td>
             <td class="p-3">${b.store || '觀塘店'}</td>
             <td class="p-3 font-mono text-slate-500">${b.isbn || '-'}</td>
@@ -564,6 +597,7 @@
       const kw = (document.getElementById('bookSearchKeyword').value || '').toLowerCase();
       const store = document.getElementById('storeFilter').value;
       const statusFilter = document.getElementById('statusFilter').value;
+      const categoryFilter = document.getElementById('categoryFilter').value;
 
       const filtered = dbBooks.filter(b => {
         const qty = b.quantity !== undefined ? b.quantity : (b.qty !== undefined ? b.qty : 0);
@@ -571,12 +605,13 @@
 
         const matchKw = (b.title || '').toLowerCase().includes(kw) || (b.isbn || '').includes(kw) || (b.author || '').toLowerCase().includes(kw);
         const matchStore = store === '全部' || b.store === store;
+        const matchCategory = categoryFilter === 'ALL' || (b.category || '未分類') === categoryFilter;
         
         let matchStatus = true;
         if (statusFilter === 'AVAILABLE') matchStatus = !isSold;
         if (statusFilter === 'SOLD') matchStatus = isSold;
 
-        return matchKw && matchStore && matchStatus;
+        return matchKw && matchStore && matchStatus && matchCategory;
       });
 
       renderBooks(filtered);
@@ -662,6 +697,7 @@
       document.getElementById('mBookId').value = data.id || '';
       document.getElementById('mIsConsignment').value = (data.is_consignment || false) ? 'true' : 'false';
       document.getElementById('mTitle').value = data.title || '';
+      document.getElementById('mCategory').value = data.category || '文學小說';
       document.getElementById('mIsbn').value = data.isbn || '';
       document.getElementById('mAuthor').value = data.author || '';
       document.getElementById('mAuthorPhone').value = data.author_phone || '';
@@ -689,7 +725,6 @@
       document.getElementById('bookModal').classList.add('hidden');
     }
 
-    // 關鍵修復：完全符合資料庫結構（僅使用 cover_url，絕不發送 cover 欄位）
     async function saveBook(e) {
       e.preventDefault();
       const saveBtn = document.getElementById('saveBookBtn');
@@ -702,9 +737,10 @@
       const priceVal = parseFloat(document.getElementById('mPrice').value) || 0;
       const coverVal = document.getElementById('mCover').value;
 
-      // 嚴格依照 Supabase 資料表欄位對齊
+      // 嚴格依照 Supabase 資料表欄位對齊（加入 category 欄位）
       const payload = {
         title: document.getElementById('mTitle').value,
+        category: document.getElementById('mCategory').value,
         isbn: document.getElementById('mIsbn').value,
         author: document.getElementById('mAuthor').value,
         price: priceVal,
