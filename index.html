@@ -18,7 +18,7 @@
 </head>
 <body class="bg-slate-100 min-h-screen p-4 md:p-8 font-sans">
 
-  <!-- 登入區塊 (若未登入時顯示) -->
+  <!-- 登入區塊 -->
   <div id="authSection" class="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-md border mt-12 hidden no-print">
     <h2 class="text-xl font-bold text-center text-slate-900 mb-6">📚 系統登入</h2>
     <form onsubmit="handleLogin(event)" class="space-y-4 text-xs">
@@ -35,10 +35,10 @@
     <p id="authError" class="text-red-500 text-xs mt-3 text-center hidden"></p>
   </div>
 
-  <!-- 主系統內容 (登入後顯示) -->
+  <!-- 主系統內容 -->
   <div id="mainApp" class="max-w-6xl mx-auto bg-white rounded-2xl shadow-sm border p-6 no-print hidden">
     
-    <!-- 頂部 Header & 帳號資訊 & 分頁頁簽 -->
+    <!-- 頂部 Header & 帳號資訊 -->
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center pb-4 border-b gap-4">
       <div>
         <div class="flex items-center gap-2">
@@ -48,14 +48,12 @@
         <p class="text-xs text-slate-500 mt-1">支持 3 間分店：觀塘店 / 西營盤店 / 荃灣店</p>
       </div>
 
-      <!-- 保留登入狀態與登出按鈕 -->
       <div class="flex items-center gap-3">
         <div class="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-xl border text-xs">
           <span id="userEmailDisplay" class="font-bold text-slate-700">載入中...</span>
           <button onclick="handleLogout()" class="bg-red-50 text-red-600 border border-red-200 px-2 py-0.5 rounded-lg font-bold hover:bg-red-100">登出</button>
         </div>
 
-        <!-- 分頁切換按鈕 -->
         <div class="flex bg-slate-100 p-1 rounded-xl border">
           <button id="tabBtnBooks" onclick="switchTab('books')" class="px-4 py-2 text-xs font-bold rounded-lg bg-white shadow-sm text-blue-600">📖 書籍管理</button>
           <button id="tabBtnCrafts" onclick="switchTab('crafts')" class="px-4 py-2 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900">🎨 文創商品</button>
@@ -66,7 +64,6 @@
 
     <!-- TAB 1: 書籍管理 -->
     <div id="tabBooks" class="tab-content mt-6">
-      <!-- 統計數據卡片 -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div class="bg-blue-50/50 border border-blue-100 p-4 rounded-xl">
           <p class="text-xs text-slate-500 font-medium">現有庫存 (在地)</p>
@@ -82,52 +79,42 @@
         </div>
       </div>
 
-      <!-- 進貨與書籍搜尋區 -->
+      <!-- 進貨與書籍搜尋 (簡化並提升成功率) -->
       <div class="bg-slate-50 p-4 rounded-xl border mb-6">
         <div class="flex justify-between items-center mb-3">
           <h2 class="text-xs font-bold text-slate-700">進貨與書籍搜尋</h2>
           <button onclick="openBookModal()" class="bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-blue-700 shadow-sm transition">+ 手動新增書籍 / 作者寄售</button>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label class="text-xs text-slate-500 mb-1 block">1. ISBN 條碼搜尋：</label>
+            <label class="text-xs text-slate-500 mb-1 block">1. 輸入 ISBN 條碼 (自動搜尋 Google/OpenLibrary)：</label>
             <div class="flex gap-2">
-              <input type="text" id="isbnInput" placeholder="輸入或掃描 ISBN" class="w-full text-xs p-2.5 border rounded-lg bg-white">
-              <button onclick="searchISBN()" class="bg-blue-600 text-white px-4 text-xs font-bold rounded-lg hover:bg-blue-700 whitespace-nowrap">搜尋</button>
+              <input type="text" id="isbnInput" placeholder="例如：9789578683761" class="w-full text-xs p-2.5 border rounded-lg bg-white" onkeydown="if(event.key==='Enter') searchISBN()">
+              <button onclick="searchISBN()" id="searchIsbnBtn" class="bg-blue-600 text-white px-4 text-xs font-bold rounded-lg hover:bg-blue-700 whitespace-nowrap">搜尋資料</button>
             </div>
           </div>
 
           <div>
-            <label class="text-xs text-slate-500 mb-1 block">2. 📸 拍照/上傳封面找書：</label>
-            <label class="flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 px-4 rounded-lg cursor-pointer transition">
-              <span>📸 拍照/上傳封面</span>
-              <input type="file" id="coverImageInput" accept="image/*" class="hidden" onchange="uploadCoverAndSearch(this)">
-            </label>
-          </div>
-
-          <div>
-            <label class="text-xs text-slate-500 mb-1 block">3. 相機掃描碼：</label>
-            <button onclick="toggleScanner()" class="w-full bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2.5 px-4 rounded-lg">開啟相機鏡頭</button>
+            <label class="text-xs text-slate-500 mb-1 block">2. 相機條碼掃描鏡頭：</label>
+            <button onclick="toggleScanner()" class="w-full bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2">
+              <span>📷 開啟 / 關閉相機掃碼</span>
+            </button>
           </div>
         </div>
-        <div id="reader" class="mt-3 hidden rounded-lg overflow-hidden border"></div>
+
+        <div id="reader" class="mt-3 hidden rounded-lg overflow-hidden border max-w-md mx-auto"></div>
       </div>
 
-      <!-- 庫存與銷售紀錄表格 -->
       <div class="flex flex-wrap justify-between items-center mb-3 gap-2">
         <h2 class="text-sm font-bold text-slate-800">庫存與銷售紀錄</h2>
         <div class="flex flex-wrap gap-2">
-          <!-- 關鍵字搜尋 -->
           <input type="text" id="bookSearchKeyword" onkeyup="filterBooks()" placeholder="搜尋書名 / ISBN / 作者..." class="text-xs p-2 border rounded-lg w-48">
-          
-          <!-- 狀態篩選器 -->
           <select id="statusFilter" onchange="filterBooks()" class="text-xs p-2 border rounded-lg bg-white font-medium">
             <option value="ALL">所有狀態 (在地 + 已售罄)</option>
             <option value="AVAILABLE" selected>僅顯示在地庫存</option>
             <option value="SOLD">僅顯示已售罄/已售出</option>
           </select>
-
-          <!-- 分店篩選器 -->
           <select id="storeFilter" onchange="filterBooks()" class="text-xs p-2 border rounded-lg bg-white">
             <option value="全部">分店：全部分店</option>
             <option value="觀塘店">觀塘店</option>
@@ -143,7 +130,7 @@
             <tr>
               <th class="p-3 w-14">封面</th>
               <th class="p-3">書名</th>
-              <th class="p-3">屬性/條款</th>
+              <th class="p-3">屬性</th>
               <th class="p-3">分店</th>
               <th class="p-3">ISBN</th>
               <th class="p-3">單價</th>
@@ -160,7 +147,7 @@
     <!-- TAB 2: 文創商品 -->
     <div id="tabCrafts" class="tab-content hidden mt-6">
       <div class="flex justify-between items-center mb-4">
-        <h2 class="text-sm font-bold text-slate-800">文創商品清單 (Postcard / 明信片 / 手作)</h2>
+        <h2 class="text-sm font-bold text-slate-800">文創商品清單</h2>
         <button onclick="openCraftModal()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-indigo-700">+ 新增文創商品</button>
       </div>
       <div class="overflow-x-auto border rounded-xl">
@@ -219,7 +206,7 @@
         <div>
           <label class="font-bold text-slate-600 block mb-1">進貨類型：</label>
           <select id="mIsConsignment" onchange="toggleConsignmentFields()" class="w-full p-2 border rounded-lg bg-slate-50 font-bold text-slate-800">
-            <option value="false">買斷 / 一般進貨</option>
+            <option value="false" selected>買斷 / 一般進貨</option>
             <option value="true">✍️ 作者寄售 (自印/獨立出版)</option>
           </select>
         </div>
@@ -274,17 +261,9 @@
           </div>
         </div>
 
-        <!-- 封面圖片上傳/網址欄 -->
         <div>
-          <label class="font-bold text-slate-600 block mb-1">封面圖片：</label>
-          <div class="flex items-center gap-2 mb-2">
-            <label class="cursor-pointer bg-slate-800 hover:bg-slate-900 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition">
-              <span>📸 拍照 / 選擇圖片上傳</span>
-              <input type="file" accept="image/*" class="hidden" onchange="handleModalImageUpload(this)">
-            </label>
-            <span id="uploadStatusText" class="text-[11px] text-slate-400"></span>
-          </div>
-          <input type="text" id="mCover" placeholder="圖片網址 (或透過上傳自動填入)" class="w-full p-2 border rounded-lg text-xs text-slate-600">
+          <label class="font-bold text-slate-600 block mb-1">封面圖片網址 (可空)：</label>
+          <input type="text" id="mCover" placeholder="https://..." class="w-full p-2 border rounded-lg text-xs text-slate-600" onchange="previewModalCover()">
           <div id="modalCoverPreview" class="mt-2 hidden">
             <img id="mCoverImg" src="" class="w-16 h-20 object-cover rounded border">
           </div>
@@ -393,59 +372,6 @@
     </div>
   </div>
 
-  <!-- 🖨️ 列印用收據 -->
-  <div id="printArea" class="hidden p-8 bg-white max-w-3xl mx-auto">
-    <div class="border-b-2 border-slate-900 pb-4 mb-6 flex justify-between items-end">
-      <div>
-        <h1 class="text-2xl font-bold text-slate-900">寄售收據 Consignment Receipt</h1>
-        <p class="text-xs text-slate-500 mt-1">單號：<span id="printReceiptNo"></span></p>
-      </div>
-      <div class="text-right text-xs text-slate-600">
-        <p>開單日期：<span id="printDate"></span></p>
-        <p>分店：<span id="printStore"></span></p>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-2 gap-4 text-xs mb-6 bg-slate-50 p-4 rounded-lg">
-      <div>
-        <p class="font-bold text-slate-700">寄售人/單位：<span id="printVendor" class="font-normal"></span></p>
-        <p class="font-bold text-slate-700 mt-1">聯絡電話：<span id="printPhone" class="font-normal"></span></p>
-      </div>
-      <div>
-        <p class="font-bold text-slate-700">條款備註：<span id="printNotes" class="font-normal"></span></p>
-      </div>
-    </div>
-
-    <table class="w-full text-left text-xs text-slate-700 mb-6 border-collapse">
-      <thead>
-        <tr class="border-b-2 border-slate-300">
-          <th class="py-2">類型</th>
-          <th class="py-2">項目名稱</th>
-          <th class="py-2 text-right">單價 (HKD)</th>
-          <th class="py-2 text-center">寄售數量</th>
-          <th class="py-2 text-right">小計</th>
-        </tr>
-      </thead>
-      <tbody id="printItemsBody" class="divide-y"></tbody>
-    </table>
-
-    <div class="text-right text-sm font-bold border-t pt-4">
-      <span>寄售總金額：</span>
-      <span id="printTotal" class="text-lg text-emerald-700"></span>
-    </div>
-
-    <div class="mt-16 pt-8 border-t grid grid-cols-2 gap-8 text-center text-xs text-slate-500">
-      <div>
-        <div class="border-b pb-8"></div>
-        <p class="mt-2">寄售人簽署</p>
-      </div>
-      <div>
-        <div class="border-b pb-8"></div>
-        <p class="mt-2">書店蓋印 / 經手人簽署</p>
-      </div>
-    </div>
-  </div>
-
   <script>
     const SUPABASE_URL = "https://gkfudwnkkrabhnmvifop.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdrZnVkd25ra3JhYmhubXZpZm9wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxNzg5NjAsImV4cCI6MjEwMzc1NDk2MH0.r3cEqVpdR0PD4TFu_2QOhDOqLiwWh5FHUVmpa168Fuk";
@@ -454,8 +380,8 @@
     let dbBooks = [];
     let dbCrafts = [];
     let consignItems = [];
+    let html5QrcodeScanner = null;
 
-    // --- Auth 登入系統邏輯 ---
     async function checkAuth() {
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (session) {
@@ -531,12 +457,10 @@
         const coverUrl = b.cover_url || b.cover || '';
         const cover = coverUrl ? `<img src="${coverUrl}" class="w-10 h-12 object-cover rounded border">` : '<div class="w-10 h-12 bg-slate-100 rounded flex items-center justify-center text-slate-400 text-xs">無</div>';
         
-        const isConsign = b.is_consignment || b.type === 'consign' || b.consignment || false;
+        const isConsign = b.is_consignment || false;
         const typeBadge = isConsign 
           ? `<span class="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] px-1.5 py-0.5 rounded font-bold">✍️ 作者寄售</span>` 
           : `<span class="bg-blue-100 text-blue-700 text-[10px] px-1.5 py-0.5 rounded font-bold">買斷</span>`;
-
-        const consignDetail = isConsign && b.consign_split ? `<div class="text-[10px] text-amber-700 mt-0.5">${b.consign_split}</div>` : '';
 
         const qty = b.quantity !== undefined ? b.quantity : (b.qty !== undefined ? b.qty : 0);
         const isSold = qty <= 0 || b.status === 'SOLD' || b.status === 'sold_out';
@@ -552,7 +476,7 @@
               ${b.title || '無標題'}
               <div class="text-slate-400 text-[11px] font-normal">${b.author || '未知作者'}</div>
             </td>
-            <td class="p-3">${typeBadge}${consignDetail}</td>
+            <td class="p-3">${typeBadge}</td>
             <td class="p-3">${b.store || '觀塘店'}</td>
             <td class="p-3 font-mono text-slate-500">${b.isbn || '-'}</td>
             <td class="p-3 font-bold text-slate-800">$ ${b.price || 0}</td>
@@ -614,25 +538,63 @@
       renderBooks(filtered);
     }
 
+    // 智能抓取多個圖書資料庫 API (Google Books + OpenLibrary)
     async function searchISBN() {
       const isbn = document.getElementById('isbnInput').value.trim();
       if (!isbn) return alert('請輸入 ISBN');
+
+      const btn = document.getElementById('searchIsbnBtn');
+      btn.disabled = true;
+      btn.innerText = '搜尋中...';
+
+      let bookInfo = { isbn: isbn, title: '', author: '', cover_url: '' };
+
       try {
-        const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&jscmd=data&format=json`);
-        const data = await res.json();
-        const bookData = data[`ISBN:${isbn}`];
-        if (bookData) {
-          openBookModal({
-            title: bookData.title,
-            isbn: isbn,
-            author: bookData.authors ? bookData.authors[0].name : '',
-            cover_url: bookData.cover ? bookData.cover.medium : ''
-          });
+        // 1. 先查 Google Books API (對中文書辨識度最高)
+        const gRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+        const gData = await gRes.json();
+
+        if (gData.items && gData.items.length > 0) {
+          const info = gData.items[0].volumeInfo;
+          bookInfo.title = info.title || '';
+          bookInfo.author = info.authors ? info.authors.join(', ') : '';
+          bookInfo.cover_url = info.imageLinks ? (info.imageLinks.thumbnail || info.imageLinks.smallThumbnail) : '';
         } else {
-          openBookModal({ isbn: isbn });
+          // 2. Google 找不到，轉查 Open Library
+          const olRes = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&jscmd=data&format=json`);
+          const olData = await olRes.json();
+          const olBook = olData[`ISBN:${isbn}`];
+
+          if (olBook) {
+            bookInfo.title = olBook.title || '';
+            bookInfo.author = olBook.authors ? olBook.authors[0].name : '';
+            bookInfo.cover_url = olBook.cover ? olBook.cover.medium : '';
+          }
         }
       } catch (e) {
-        openBookModal({ isbn: isbn });
+        console.error('API 查詢異常:', e);
+      }
+
+      btn.disabled = false;
+      btn.innerText = '搜尋資料';
+      openBookModal(bookInfo);
+    }
+
+    // 鏡頭掃描條碼
+    function toggleScanner() {
+      const readerEl = document.getElementById('reader');
+      if (readerEl.classList.contains('hidden')) {
+        readerEl.classList.remove('hidden');
+        html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 150 } }, false);
+        html5QrcodeScanner.render((decodedText) => {
+          document.getElementById('isbnInput').value = decodedText;
+          html5QrcodeScanner.clear();
+          readerEl.classList.add('hidden');
+          searchISBN();
+        }, (errorMessage) => {});
+      } else {
+        if (html5QrcodeScanner) html5QrcodeScanner.clear();
+        readerEl.classList.add('hidden');
       }
     }
 
@@ -646,44 +608,31 @@
       }
     }
 
-    function handleModalImageUpload(input) {
-      if (input.files && input.files[0]) {
-        const file = input.files[0];
-        document.getElementById('uploadStatusText').innerText = '載入中...';
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          const base64Url = e.target.result;
-          document.getElementById('mCover').value = base64Url;
-          document.getElementById('mCoverImg').src = base64Url;
-          document.getElementById('modalCoverPreview').classList.remove('hidden');
-          document.getElementById('uploadStatusText').innerText = '已載入圖片！';
-        };
-        reader.readAsDataURL(file);
+    function previewModalCover() {
+      const url = document.getElementById('mCover').value;
+      if (url) {
+        document.getElementById('mCoverImg').src = url;
+        document.getElementById('modalCoverPreview').classList.remove('hidden');
+      } else {
+        document.getElementById('modalCoverPreview').classList.add('hidden');
       }
     }
 
     function openBookModal(data = {}) {
       document.getElementById('mBookId').value = data.id || '';
-      document.getElementById('mIsConsignment').value = (data.is_consignment || data.type === 'consign') ? 'true' : 'false';
+      document.getElementById('mIsConsignment').value = (data.is_consignment || false) ? 'true' : 'false';
       document.getElementById('mTitle').value = data.title || '';
       document.getElementById('mIsbn').value = data.isbn || '';
       document.getElementById('mAuthor').value = data.author || '';
       document.getElementById('mAuthorPhone').value = data.author_phone || '';
       document.getElementById('mConsignSplit').value = data.consign_split || '';
-      document.getElementById('mPrice').value = data.price || 70;
+      document.getElementById('mPrice').value = data.price || 65;
       document.getElementById('mQty').value = data.quantity !== undefined ? data.quantity : (data.qty !== undefined ? data.qty : 1);
       document.getElementById('mStore').value = data.store || '觀塘店';
       
       const coverUrl = data.cover_url || data.cover || '';
       document.getElementById('mCover').value = coverUrl;
-      document.getElementById('uploadStatusText').innerText = '';
-
-      if (coverUrl) {
-        document.getElementById('mCoverImg').src = coverUrl;
-        document.getElementById('modalCoverPreview').classList.remove('hidden');
-      } else {
-        document.getElementById('modalCoverPreview').classList.add('hidden');
-      }
+      previewModalCover();
 
       toggleConsignmentFields();
 
@@ -700,7 +649,7 @@
       document.getElementById('bookModal').classList.add('hidden');
     }
 
-    // 關鍵修復：同時寫入多名稱欄位（防止 Supabase 資料庫 schema 命名不合）並加上錯誤捕捉提示
+    // 關鍵修復：乾淨的寫入 Payload，一般進貨絕不發送寄售欄位
     async function saveBook(e) {
       e.preventDefault();
       const saveBtn = document.getElementById('saveBookBtn');
@@ -713,23 +662,29 @@
       const priceVal = parseFloat(document.getElementById('mPrice').value) || 0;
       const coverVal = document.getElementById('mCover').value;
 
-      // 雙向相容寫入 (quantity/qty, cover_url/cover)
+      // 基礎通用欄位 (普通買斷書籍)
       const payload = {
         title: document.getElementById('mTitle').value,
         isbn: document.getElementById('mIsbn').value,
         author: document.getElementById('mAuthor').value,
-        is_consignment: isConsignment,
-        type: isConsignment ? 'consign' : 'buyout',
-        author_phone: isConsignment ? document.getElementById('mAuthorPhone').value : null,
-        consign_split: isConsignment ? document.getElementById('mConsignSplit').value : null,
         price: priceVal,
         quantity: qty,
         qty: qty,
         store: document.getElementById('mStore').value,
         cover_url: coverVal,
         cover: coverVal,
-        status: qty > 0 ? 'in_stock' : 'sold_out'
+        status: qty > 0 ? 'in_stock' : 'sold_out',
+        is_consignment: false
       };
+
+      // 僅在選擇「作者寄售」時，才額外添加寄售專用欄位
+      if (isConsignment) {
+        payload.is_consignment = true;
+        const phone = document.getElementById('mAuthorPhone').value;
+        const split = document.getElementById('mConsignSplit').value;
+        if (phone) payload.author_phone = phone;
+        if (split) payload.consign_split = split;
+      }
 
       let error = null;
 
@@ -747,10 +702,10 @@
 
       if (error) {
         console.error('Supabase 寫入失敗詳情:', error);
-        alert('❌ 儲存失敗！\n原因：' + error.message + '\n提示：請檢查 Supabase 的 RLS 權限或資料表欄位設定。');
+        alert('❌ 儲存失敗！\n錯誤原因：' + error.message);
       } else {
         closeBookModal();
-        await loadBooks(); // 重新讀取
+        await loadBooks();
       }
     }
 
@@ -956,36 +911,6 @@
       });
     }
 
-    async function printReceipt(receiptNo) {
-      const { data } = await supabaseClient.from('consignments').select('*').eq('receipt_no', receiptNo).single();
-      if (!data) return;
-
-      document.getElementById('printReceiptNo').innerText = data.receipt_no;
-      document.getElementById('printDate').innerText = new Date(data.created_at).toLocaleDateString();
-      document.getElementById('printStore').innerText = data.store || '觀塘店';
-      document.getElementById('printVendor').innerText = data.vendor_name;
-      document.getElementById('printPhone').innerText = data.vendor_phone || '-';
-      document.getElementById('printNotes').innerText = data.notes || '無';
-      document.getElementById('printTotal').innerText = `$ ${data.total_amount}`;
-
-      const tbody = document.getElementById('printItemsBody');
-      tbody.innerHTML = '';
-      (data.items_json || []).forEach(item => {
-        tbody.innerHTML += `
-          <tr>
-            <td class="py-2">${item.type === 'book' ? '書籍' : '文創'}</td>
-            <td class="py-2 font-semibold">${item.name}</td>
-            <td class="py-2 text-right">$ ${item.price}</td>
-            <td class="py-2 text-center">${item.qty}</td>
-            <td class="py-2 text-right font-bold">$ ${item.price * item.qty}</td>
-          </tr>
-        `;
-      });
-
-      window.print();
-    }
-
-    // 初始化啟動驗證檢查
     checkAuth();
   </script>
 </body>
