@@ -285,7 +285,7 @@
           <div class="flex gap-2 mb-2">
             <label class="flex-1 bg-slate-800 text-white font-bold py-2 px-3 rounded-lg text-center cursor-pointer hover:bg-slate-900 transition flex items-center justify-center gap-1">
               <span>📸 拍照 / 上傳相片</span>
-              <input type="file" accept="image/*" capture="environment" onchange="handleImageUpload(event)" class="hidden">
+              <input type="file" accept="image/*" capture="environment" onchange="handleImageUpload(event, 'book')" class="hidden">
             </label>
           </div>
 
@@ -302,7 +302,7 @@
   </div>
 
   <div id="craftModal" class="hidden fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
-    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
       <button onclick="closeCraftModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">✕</button>
       <h3 id="craftModalTitle" class="text-sm font-bold text-slate-900 mb-4">🎨 新增文創商品</h3>
       <form onsubmit="saveCraft(event)" class="space-y-3 text-xs">
@@ -339,6 +339,23 @@
             </select>
           </div>
         </div>
+
+        <div>
+          <label class="font-bold text-slate-600 block mb-1">商品相片：</label>
+          <div class="flex gap-2 mb-2">
+            <label class="flex-1 bg-slate-800 text-white font-bold py-2 px-3 rounded-lg text-center cursor-pointer hover:bg-slate-900 transition flex items-center justify-center gap-1">
+              <span>📸 拍照 / 上傳相片</span>
+              <input type="file" accept="image/*" capture="environment" onchange="handleImageUpload(event, 'craft')" class="hidden">
+            </label>
+          </div>
+
+          <input type="text" id="cImage" placeholder="或輸入圖片網址 https://..." class="w-full p-2 border rounded-lg text-xs text-slate-600" onchange="previewCraftCover()">
+          
+          <div id="craftCoverPreview" class="mt-2 hidden">
+            <img id="cImageImg" src="" class="w-20 h-20 object-cover rounded border shadow-sm">
+          </div>
+        </div>
+
         <button type="submit" id="saveCraftBtn" class="w-full bg-indigo-600 text-white py-2.5 rounded-lg font-bold hover:bg-indigo-700 mt-2">儲存商品</button>
       </form>
     </div>
@@ -458,8 +475,8 @@
       document.getElementById('tabBtnConsign').className = "px-4 py-2 text-xs font-bold rounded-lg " + (tab === 'consign' ? "bg-white shadow-sm text-emerald-600" : "text-slate-600 hover:text-slate-900");
     }
 
-    // --- 相片上傳與自動壓縮處理 ---
-    function handleImageUpload(e) {
+    // --- 相片上傳與自動壓縮處理 (支援書籍與文創) ---
+    function handleImageUpload(e, targetType = 'book') {
       const file = e.target.files[0];
       if (!file) return;
 
@@ -483,8 +500,14 @@
           ctx.drawImage(img, 0, 0, width, height);
 
           const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-          document.getElementById('mCover').value = dataUrl;
-          previewModalCover();
+
+          if (targetType === 'craft') {
+            document.getElementById('cImage').value = dataUrl;
+            previewCraftCover();
+          } else {
+            document.getElementById('mCover').value = dataUrl;
+            previewModalCover();
+          }
         };
         img.src = event.target.result;
       };
@@ -817,16 +840,31 @@
       }
     }
 
-    // --- 文創商品功能 (已包含編輯) ---
+    // --- 文創商品功能 (已包含編輯 + 相片上傳) ---
+    function previewCraftCover() {
+      const url = document.getElementById('cImage').value;
+      if (url) {
+        document.getElementById('cImageImg').src = url;
+        document.getElementById('craftCoverPreview').classList.remove('hidden');
+      } else {
+        document.getElementById('craftCoverPreview').classList.add('hidden');
+      }
+    }
+
     async function loadCrafts() {
       const { data } = await supabaseClient.from('craft_items').select('*').order('id', { ascending: false });
       dbCrafts = data || [];
       const tbody = document.getElementById('craftTableBody');
       tbody.innerHTML = '';
       dbCrafts.forEach(c => {
+        const imgUrl = c.image_url || c.cover_url || '';
+        const img = imgUrl 
+          ? `<img src="${imgUrl}" class="w-10 h-10 object-cover rounded border shadow-sm">` 
+          : `<div class="w-10 h-10 bg-indigo-50 rounded flex items-center justify-center text-indigo-500 font-bold">🎨</div>`;
+
         tbody.innerHTML += `
           <tr class="hover:bg-slate-50">
-            <td class="p-3"><div class="w-10 h-10 bg-indigo-50 rounded flex items-center justify-center text-indigo-500 font-bold">🎨</div></td>
+            <td class="p-3">${img}</td>
             <td class="p-3 font-semibold text-slate-800">${c.name}</td>
             <td class="p-3">${c.creator_name || '-'}</td>
             <td class="p-3 text-slate-500">${c.creator_ig || c.creator_phone || '-'}</td>
@@ -850,6 +888,10 @@
       document.getElementById('cPrice').value = data.price || '';
       document.getElementById('cQty').value = data.quantity !== undefined ? data.quantity : 1;
       document.getElementById('cStore').value = data.store || '觀塘店';
+      
+      const imgUrl = data.image_url || data.cover_url || '';
+      document.getElementById('cImage').value = imgUrl;
+      previewCraftCover();
 
       document.getElementById('craftModalTitle').innerText = data.id ? '🎨 編輯文創商品' : '🎨 新增文創商品';
       document.getElementById('craftModal').classList.remove('hidden');
@@ -871,13 +913,16 @@
       saveBtn.innerText = '儲存中...';
 
       const id = document.getElementById('cId').value;
+      const imgVal = document.getElementById('cImage').value;
+
       const payload = {
         name: document.getElementById('cName').value,
         creator_name: document.getElementById('cCreator').value,
         creator_ig: document.getElementById('cContact').value,
         price: parseFloat(document.getElementById('cPrice').value),
         quantity: parseInt(document.getElementById('cQty').value),
-        store: document.getElementById('cStore').value
+        store: document.getElementById('cStore').value,
+        image_url: imgVal
       };
 
       let error = null;
