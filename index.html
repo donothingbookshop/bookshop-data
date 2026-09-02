@@ -18,7 +18,6 @@
 </head>
 <body class="bg-slate-100 min-h-screen p-4 md:p-8 font-sans">
 
-  <!-- 登入區塊 -->
   <div id="authSection" class="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-md border mt-12 hidden no-print">
     <h2 class="text-xl font-bold text-center text-slate-900 mb-6">📚 系統登入</h2>
     <form onsubmit="handleLogin(event)" class="space-y-4 text-xs">
@@ -35,10 +34,8 @@
     <p id="authError" class="text-red-500 text-xs mt-3 text-center hidden"></p>
   </div>
 
-  <!-- 主系統內容 -->
   <div id="mainApp" class="max-w-6xl mx-auto bg-white rounded-2xl shadow-sm border p-6 no-print hidden">
     
-    <!-- Header -->
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center pb-4 border-b gap-4">
       <div>
         <div class="flex items-center gap-2">
@@ -62,7 +59,6 @@
       </div>
     </div>
 
-    <!-- TAB 1: 書籍管理 -->
     <div id="tabBooks" class="tab-content mt-6">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div class="bg-blue-50/50 border border-blue-100 p-4 rounded-xl">
@@ -79,7 +75,6 @@
         </div>
       </div>
 
-      <!-- 進貨與搜尋 -->
       <div class="bg-slate-50 p-4 rounded-xl border mb-6">
         <div class="flex justify-between items-center mb-3">
           <h2 class="text-xs font-bold text-slate-700">進貨與書籍搜尋</h2>
@@ -106,13 +101,11 @@
         <div id="reader" class="mt-3 hidden rounded-lg overflow-hidden border max-w-md mx-auto"></div>
       </div>
 
-      <!-- 篩選列 -->
       <div class="flex flex-wrap justify-between items-center mb-3 gap-2">
         <h2 class="text-sm font-bold text-slate-800">庫存與銷售紀錄</h2>
         <div class="flex flex-wrap gap-2">
           <input type="text" id="bookSearchKeyword" onkeyup="filterBooks()" placeholder="搜尋書名 / ISBN / 作者..." class="text-xs p-2 border rounded-lg w-40">
           
-          <!-- 新增：書籍主題篩選 下拉選單 -->
           <select id="categoryFilter" onchange="filterBooks()" class="text-xs p-2 border rounded-lg bg-white font-medium">
             <option value="ALL">所有主題分類</option>
             <option value="文學小說">📖 文學小說</option>
@@ -160,7 +153,6 @@
       </div>
     </div>
 
-    <!-- TAB 2: 文創商品 -->
     <div id="tabCrafts" class="tab-content hidden mt-6">
       <div class="flex justify-between items-center mb-4">
         <h2 class="text-sm font-bold text-slate-800">文創商品清單</h2>
@@ -185,7 +177,6 @@
       </div>
     </div>
 
-    <!-- TAB 3: 寄售單與收據 -->
     <div id="tabConsign" class="tab-content hidden mt-6">
       <div class="flex justify-between items-center mb-4">
         <h2 class="text-sm font-bold text-slate-800">寄售紀錄與單據清單</h2>
@@ -211,7 +202,6 @@
 
   </div>
 
-  <!-- 📖 新增 / 編輯書籍 Modal -->
   <div id="bookModal" class="hidden fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
     <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
       <button onclick="closeBookModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">✕</button>
@@ -232,7 +222,6 @@
           <input type="text" id="mTitle" required class="w-full p-2 border rounded-lg">
         </div>
 
-        <!-- 新增：書籍主題分類 下拉選單 -->
         <div>
           <label class="font-bold text-slate-600 block mb-1">書籍主題 (分類)：</label>
           <select id="mCategory" class="w-full p-2 border rounded-lg bg-white font-medium">
@@ -258,7 +247,6 @@
           </div>
         </div>
 
-        <!-- 寄售專用欄位 -->
         <div id="consignmentFields" class="hidden border border-amber-200 bg-amber-50/50 p-3 rounded-lg space-y-2">
           <p class="font-bold text-amber-800 text-[11px]">✍️ 作者寄售設定：</p>
           <div class="grid grid-cols-2 gap-2">
@@ -292,7 +280,6 @@
           </div>
         </div>
 
-        <!-- 封面上傳 / 相機拍攝 / 網址輸入區塊 -->
         <div>
           <label class="font-bold text-slate-600 block mb-1">書籍封面：</label>
           <div class="flex gap-2 mb-2">
@@ -314,12 +301,12 @@
     </div>
   </div>
 
-  <!-- 🎨 新增文創商品 Modal -->
   <div id="craftModal" class="hidden fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
     <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
       <button onclick="closeCraftModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">✕</button>
-      <h3 class="text-sm font-bold text-slate-900 mb-4">🎨 新增文創商品</h3>
+      <h3 id="craftModalTitle" class="text-sm font-bold text-slate-900 mb-4">🎨 新增文創商品</h3>
       <form onsubmit="saveCraft(event)" class="space-y-3 text-xs">
+        <input type="hidden" id="cId">
         <div>
           <label class="font-bold text-slate-600 block mb-1">商品名稱：</label>
           <input type="text" id="cName" required class="w-full p-2 border rounded-lg">
@@ -352,12 +339,11 @@
             </select>
           </div>
         </div>
-        <button type="submit" class="w-full bg-indigo-600 text-white py-2.5 rounded-lg font-bold hover:bg-indigo-700 mt-2">儲存商品</button>
+        <button type="submit" id="saveCraftBtn" class="w-full bg-indigo-600 text-white py-2.5 rounded-lg font-bold hover:bg-indigo-700 mt-2">儲存商品</button>
       </form>
     </div>
   </div>
 
-  <!-- 📄 開立/編輯寄售單 Modal -->
   <div id="consignModal" class="hidden fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 overflow-y-auto">
     <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative my-8">
       <button onclick="closeConsignmentModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-lg">✕</button>
@@ -496,7 +482,6 @@
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
 
-          // 轉為 base64 格式
           const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
           document.getElementById('mCover').value = dataUrl;
           previewModalCover();
@@ -737,7 +722,6 @@
       const priceVal = parseFloat(document.getElementById('mPrice').value) || 0;
       const coverVal = document.getElementById('mCover').value;
 
-      // 嚴格依照 Supabase 資料表欄位對齊（加入 category 欄位）
       const payload = {
         title: document.getElementById('mTitle').value,
         category: document.getElementById('mCategory').value,
@@ -833,7 +817,7 @@
       }
     }
 
-    // --- 文創商品功能 ---
+    // --- 文創商品功能 (已包含編輯) ---
     async function loadCrafts() {
       const { data } = await supabaseClient.from('craft_items').select('*').order('id', { ascending: false });
       dbCrafts = data || [];
@@ -849,17 +833,44 @@
             <td class="p-3">${c.store || '觀塘店'}</td>
             <td class="p-3 font-bold text-slate-800">$ ${c.price}</td>
             <td class="p-3 font-bold text-indigo-600">${c.quantity || 1} 件</td>
-            <td class="p-3"><button onclick="deleteCraft(${c.id})" class="text-red-500 hover:underline font-bold">刪除</button></td>
+            <td class="p-3 space-x-2 whitespace-nowrap">
+              <button onclick="editCraft(${c.id})" class="text-indigo-600 hover:underline font-bold">編輯</button>
+              <button onclick="deleteCraft(${c.id})" class="text-red-500 hover:underline font-bold">刪除</button>
+            </td>
           </tr>
         `;
       });
     }
 
-    function openCraftModal() { document.getElementById('craftModal').classList.remove('hidden'); }
-    function closeCraftModal() { document.getElementById('craftModal').classList.add('hidden'); }
+    function openCraftModal(data = {}) {
+      document.getElementById('cId').value = data.id || '';
+      document.getElementById('cName').value = data.name || '';
+      document.getElementById('cCreator').value = data.creator_name || '';
+      document.getElementById('cContact').value = data.creator_ig || data.creator_phone || '';
+      document.getElementById('cPrice').value = data.price || '';
+      document.getElementById('cQty').value = data.quantity !== undefined ? data.quantity : 1;
+      document.getElementById('cStore').value = data.store || '觀塘店';
+
+      document.getElementById('craftModalTitle').innerText = data.id ? '🎨 編輯文創商品' : '🎨 新增文創商品';
+      document.getElementById('craftModal').classList.remove('hidden');
+    }
+
+    function editCraft(id) {
+      const craft = dbCrafts.find(c => c.id === id);
+      if (craft) openCraftModal(craft);
+    }
+
+    function closeCraftModal() { 
+      document.getElementById('craftModal').classList.add('hidden'); 
+    }
 
     async function saveCraft(e) {
       e.preventDefault();
+      const saveBtn = document.getElementById('saveCraftBtn');
+      saveBtn.disabled = true;
+      saveBtn.innerText = '儲存中...';
+
+      const id = document.getElementById('cId').value;
       const payload = {
         name: document.getElementById('cName').value,
         creator_name: document.getElementById('cCreator').value,
@@ -868,9 +879,25 @@
         quantity: parseInt(document.getElementById('cQty').value),
         store: document.getElementById('cStore').value
       };
-      await supabaseClient.from('craft_items').insert([payload]);
-      closeCraftModal();
-      loadCrafts();
+
+      let error = null;
+      if (id) {
+        const res = await supabaseClient.from('craft_items').update(payload).eq('id', id);
+        error = res.error;
+      } else {
+        const res = await supabaseClient.from('craft_items').insert([payload]);
+        error = res.error;
+      }
+
+      saveBtn.disabled = false;
+      saveBtn.innerText = '儲存商品';
+
+      if (error) {
+        alert('❌ 儲存失敗！\n錯誤原因：' + error.message);
+      } else {
+        closeCraftModal();
+        await loadCrafts();
+      }
     }
 
     async function deleteCraft(id) {
